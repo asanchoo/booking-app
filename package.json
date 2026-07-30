@@ -1,0 +1,10 @@
+{
+  "name": "booking-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "db:migrate": "npm run db:migrate --prefix server",
+    "db:seed": "npm run db:seed --prefix server",
+    "db:setup": "npm run db:setup --prefix server"
+  }
+}

@@ -1,0 +1,63 @@
+import { db } from './connection.js';
+
+const services = [
+  {
+    name: 'Стрижка',
+    duration_minutes: 30,
+    price_cents: 250000,
+  },
+  {
+    name: 'Борода',
+    duration_minutes: 20,
+    price_cents: 150000,
+  },
+  {
+    name: 'Стрижка + борода',
+    duration_minutes: 45,
+    price_cents: 350000,
+  },
+];
+
+const settings = [
+  { key: 'work_start', value: '09:00' },
+  { key: 'work_end', value: '18:00' },
+  { key: 'slot_step_minutes', value: '30' },
+  { key: 'work_days', value: '1,2,3,4,5' },
+  { key: 'timezone', value: 'Asia/Almaty' },
+];
+
+const insertService = db.prepare(`
+  INSERT INTO services (name, duration_minutes, price_cents, is_active)
+  VALUES (@name, @duration_minutes, @price_cents, 1)
+`);
+
+const insertSetting = db.prepare(`
+  INSERT INTO business_settings (key, value)
+  VALUES (@key, @value)
+`);
+
+const seed = db.transaction(() => {
+  const serviceCount = db.prepare('SELECT COUNT(*) AS count FROM services').get().count;
+  if (serviceCount === 0) {
+    for (const service of services) {
+      insertService.run(service);
+    }
+    console.log(`Seeded ${services.length} services.`);
+  } else {
+    console.log(`Services already exist (${serviceCount}), skipping.`);
+  }
+
+  const settingsCount = db.prepare('SELECT COUNT(*) AS count FROM business_settings').get().count;
+  if (settingsCount === 0) {
+    for (const setting of settings) {
+      insertSetting.run(setting);
+    }
+    console.log(`Seeded ${settings.length} business settings.`);
+  } else {
+    console.log(`Business settings already exist (${settingsCount}), skipping.`);
+  }
+});
+
+seed();
+
+console.log('Seed complete.');

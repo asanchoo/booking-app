@@ -1,0 +1,14 @@
+{
+  "name": "booking-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:migrate": "node src/db/migrate.js",
+    "db:seed": "node src/db/seed.js",
+    "db:setup": "npm run db:migrate && npm run db:seed"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.9.0"
+  }
+}
