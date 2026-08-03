@@ -5,6 +5,8 @@
   "scripts": {
     "db:migrate": "npm run db:migrate --prefix server",
     "db:seed": "npm run db:seed --prefix server",
-    "db:setup": "npm run db:setup --prefix server"
+    "db:setup": "npm run db:setup --prefix server",
+    "dev": "npm run dev --prefix server",
+    "start": "npm run start --prefix server"
   }
 }
