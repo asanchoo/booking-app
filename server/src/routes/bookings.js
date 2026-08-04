@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { createBooking, listBookings } from '../services/bookingService.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
   res.json(listBookings());
 });
 

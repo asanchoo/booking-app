@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchBookings } from '../api/bookingApi.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Calendar, 
@@ -9,19 +11,44 @@ import {
   Scissors, 
   Phone, 
   CheckCircle2, 
-  TrendingUp 
+  TrendingUp,
+  LogOut,
+  LayoutDashboard,
+  Settings,
+  UserCog
 } from 'lucide-react';
+import AdminServices from '../components/AdminServices.jsx';
+import AdminBarbers from '../components/AdminBarbers.jsx';
+import AdminSettings from '../components/AdminSettings.jsx';
 import './AdminPage.css';
 
+const TABS = [
+  { id: 'bookings', label: 'Записи', icon: LayoutDashboard },
+  { id: 'services', label: 'Услуги', icon: Scissors },
+  { id: 'barbers', label: 'Барберы', icon: UserCog },
+  { id: 'settings', label: 'Настройки', icon: Settings },
+];
+
 export default function AdminPage() {
+  const [activeTab, setActiveTab] = useState('bookings');
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleAuthError = () => navigate('/login');
+
   useEffect(() => {
-    loadData();
-  }, []);
+    if (activeTab === 'bookings') loadData();
+  }, [activeTab]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   const loadData = async () => {
     setIsLoading(true);
@@ -30,25 +57,42 @@ export default function AdminPage() {
       const data = await fetchBookings();
       setBookings(data);
     } catch (err) {
+      if (err.status === 401) {
+        navigate('/login');
+        return;
+      }
       setError(err.message || 'Ошибка загрузки списка записей');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Helper for local YYYY-MM-DD string
+  const getLocalDateStr = (d = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Metrics computation
   const metrics = useMemo(() => {
     const total = bookings.length;
+    const now = new Date();
+    const todayStr = getLocalDateStr(now);
 
-    const todayStr = new Date().toISOString().split('T')[0];
     const todayCount = bookings.filter((b) => {
       const time = b.startsAt || b.start_time;
-      return time && time.startsWith(todayStr);
+      const status = b.status || 'confirmed';
+      if (!time || status === 'cancelled') return false;
+      const bDateStr = getLocalDateStr(new Date(time));
+      return bDateStr === todayStr;
     }).length;
 
     const upcomingCount = bookings.filter((b) => {
       const time = b.startsAt || b.start_time;
-      return time && new Date(time) >= new Date();
+      const status = b.status || 'confirmed';
+      return time && new Date(time) >= now && status === 'confirmed';
     }).length;
 
     return {
@@ -66,7 +110,8 @@ export default function AdminPage() {
       const cName = (b.clientName || b.customer_name || '').toLowerCase();
       const cPhone = (b.clientPhone || b.customer_phone || '').toLowerCase();
       const sName = (b.serviceName || b.service_name || '').toLowerCase();
-      return cName.includes(q) || cPhone.includes(q) || sName.includes(q);
+      const bName = (b.barberName || b.barber_name || '').toLowerCase();
+      return cName.includes(q) || cPhone.includes(q) || sName.includes(q) || bName.includes(q);
     });
   }, [bookings, searchQuery]);
 
@@ -84,26 +129,22 @@ export default function AdminPage() {
     return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   };
 
-  return (
-    <div className="admin-page-container">
-      {/* Top Header */}
-      <div className="admin-header">
-        <div>
-          <h1 className="admin-title">Панель управления</h1>
-          <p className="admin-subtitle">Обзор записей клиентов и ключевая статистика</p>
-        </div>
-        <button onClick={loadData} className="refresh-button" disabled={isLoading}>
-          <RefreshCw size={16} className={isLoading ? 'spinner' : ''} />
-          <span>Обновить данные</span>
-        </button>
-      </div>
-
-      {error && (
-        <div className="admin-error-banner">
-          <span>{error}</span>
-        </div>
-      )}
-
+    const getStatusInfo = (booking) => {
+      if (booking.status === 'cancelled') {
+        return { label: 'Отменено', className: 'cancelled' };
+      }
+      const time = booking.startsAt || booking.start_time;
+      if (!time) {
+        return { label: 'Завершена', className: 'completed' };
+      }
+      const now = new Date();
+      if (booking.status === 'confirmed' && new Date(time) >= now) {
+        return { label: 'Предстоящая', className: 'confirmed' };
+      }
+      return { label: 'Завершена', className: 'completed' };
+    };
+  const renderBookingsTab = () => (
+    <>
       {/* Metrics Cards */}
       <div className="metrics-grid">
         <div className="metric-card glass-panel">
@@ -145,7 +186,7 @@ export default function AdminPage() {
             <Search size={16} className="search-icon" />
             <input
               type="text"
-              placeholder="Поиск по имени, телефону или услуге..."
+              placeholder="Поиск по имени, телефону, услуге или мастеру..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -169,6 +210,7 @@ export default function AdminPage() {
                   <th>Дата и Время</th>
                   <th>Клиент</th>
                   <th>Телефон</th>
+                  <th>Мастер</th>
                   <th>Услуга</th>
                   <th>Статус</th>
                 </tr>
@@ -179,6 +221,8 @@ export default function AdminPage() {
                   const cName = b.clientName || b.customer_name;
                   const cPhone = b.clientPhone || b.customer_phone;
                   const sName = b.serviceName || b.service_name || `Услуга #${b.serviceId || b.service_id}`;
+                  const bName = b.barberName || b.barber_name || 'Не указан';
+                  const statusInfo = getStatusInfo(b);
 
                   return (
                     <tr key={b.id}>
@@ -200,15 +244,18 @@ export default function AdminPage() {
                         </div>
                       </td>
                       <td>
+                        <div className="barber-name-cell">{bName}</div>
+                      </td>
+                      <td>
                         <div className="service-badge">
                           <Scissors size={13} />
                           <span>{sName}</span>
                         </div>
                       </td>
                       <td>
-                        <span className={`status-pill ${b.status || 'confirmed'}`}>
+                        <span className={`status-pill ${statusInfo.className}`}>
                           <CheckCircle2 size={12} />
-                          {b.status === 'cancelled' ? 'Отменено' : 'Подтверждено'}
+                          {statusInfo.label}
                         </span>
                       </td>
                     </tr>
@@ -218,6 +265,61 @@ export default function AdminPage() {
             </table>
           </div>
         )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="admin-page-container">
+      {/* Top Header */}
+      <div className="admin-header">
+        <div>
+          <h1 className="admin-title">Панель управления</h1>
+          <p className="admin-subtitle">Управление записями, услугами и настройками</p>
+        </div>
+        <div className="header-actions">
+          {activeTab === 'bookings' && (
+            <button onClick={loadData} className="refresh-button" disabled={isLoading}>
+              <RefreshCw size={16} className={isLoading ? 'spinner' : ''} />
+              <span>Обновить</span>
+            </button>
+          )}
+          <button onClick={handleLogout} className="logout-button">
+            <LogOut size={16} />
+            <span>Выйти</span>
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="admin-error-banner">
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Tab Navigation */}
+      <div className="admin-tabs">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              className={`admin-tab ${activeTab === tab.id ? 'admin-tab-active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <Icon size={16} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Content */}
+      <div className="admin-tab-content">
+        {activeTab === 'bookings' && renderBookingsTab()}
+        {activeTab === 'services' && <AdminServices onAuthError={handleAuthError} />}
+        {activeTab === 'barbers' && <AdminBarbers onAuthError={handleAuthError} />}
+        {activeTab === 'settings' && <AdminSettings onAuthError={handleAuthError} />}
       </div>
     </div>
   );

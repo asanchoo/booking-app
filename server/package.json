@@ -11,8 +11,13 @@
     "db:setup": "npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^11.9.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0"
   }
 }

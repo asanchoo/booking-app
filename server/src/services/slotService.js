@@ -26,18 +26,31 @@ function getActiveService(serviceId) {
     .get(serviceId);
 }
 
-function getConfirmedBookings(fromDateTime, toDateTime) {
+function getActiveBarber(barberId) {
+  return db
+    .prepare(
+      `
+      SELECT id, name
+      FROM barbers
+      WHERE id = ? AND is_active = 1
+    `,
+    )
+    .get(barberId);
+}
+
+function getConfirmedBookings(barberId, fromDateTime, toDateTime) {
   return db
     .prepare(
       `
       SELECT starts_at AS startsAt, ends_at AS endsAt
       FROM bookings
       WHERE status = 'confirmed'
+        AND barber_id = ?
         AND starts_at < ?
         AND ends_at > ?
     `,
     )
-    .all(toDateTime, fromDateTime);
+    .all(barberId, toDateTime, fromDateTime);
 }
 
 function generateDaySlots(date, settings, durationMinutes) {
@@ -48,7 +61,13 @@ function generateDaySlots(date, settings, durationMinutes) {
 
   const stepMinutes = Number(settings.slot_step_minutes);
   const workStartMinutes = parseTimeToMinutes(settings.work_start);
-  const workEndMinutes = parseTimeToMinutes(settings.work_end);
+  let workEndMinutes = parseTimeToMinutes(settings.work_end);
+
+  // If work_end is earlier than or equal to work_start, it means it crosses midnight into the next day (e.g. 10:00 to 02:00)
+  if (workEndMinutes <= workStartMinutes) {
+    workEndMinutes += 24 * 60;
+  }
+
   const slots = [];
 
   for (
@@ -56,8 +75,16 @@ function generateDaySlots(date, settings, durationMinutes) {
     startMinutes + durationMinutes <= workEndMinutes;
     startMinutes += stepMinutes
   ) {
-    const time = minutesToTime(startMinutes);
-    const startsAt = buildDateTime(date, time);
+    const dayOffset = Math.floor(startMinutes / (24 * 60));
+    const dayMinutes = startMinutes % (24 * 60);
+    const time = minutesToTime(dayMinutes);
+
+    let slotDate = date;
+    if (dayOffset > 0) {
+      slotDate = addDays(date, dayOffset);
+    }
+
+    const startsAt = buildDateTime(slotDate, time);
     const endsAt = addMinutesToDateTime(startsAt, durationMinutes);
     slots.push({ startsAt, endsAt });
   }
@@ -65,10 +92,15 @@ function generateDaySlots(date, settings, durationMinutes) {
   return slots;
 }
 
-export function getAvailableSlots(serviceId, fromParam, toParam) {
+export function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
   const service = getActiveService(serviceId);
   if (!service) {
     throw new HttpError(404, 'Service not found');
+  }
+
+  const barber = getActiveBarber(barberId);
+  if (!barber) {
+    throw new HttpError(404, 'Barber not found');
   }
 
   const defaults = defaultSlotRange();
@@ -91,7 +123,7 @@ export function getAvailableSlots(serviceId, fromParam, toParam) {
   const now = formatDateTime(new Date());
   const rangeEndDateTime = buildDateTime(toDate, settings.work_end);
   const rangeStartDateTime = buildDateTime(rangeStart, settings.work_start);
-  const existingBookings = getConfirmedBookings(rangeStartDateTime, rangeEndDateTime);
+  const existingBookings = getConfirmedBookings(barber.id, rangeStartDateTime, rangeEndDateTime);
 
   const slots = [];
 
@@ -115,6 +147,7 @@ export function getAvailableSlots(serviceId, fromParam, toParam) {
 
   return {
     serviceId: service.id,
+    barberId: barber.id,
     from: formatDate(rangeStart),
     to: formatDate(toDate),
     slots,

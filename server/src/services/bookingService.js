@@ -7,6 +7,8 @@ function mapBooking(row) {
     id: row.id,
     serviceId: row.serviceId,
     serviceName: row.serviceName,
+    barberId: row.barberId,
+    barberName: row.barberName,
     clientName: row.clientName,
     clientPhone: row.clientPhone,
     startsAt: row.startsAt,
@@ -28,24 +30,37 @@ function getActiveService(serviceId) {
     .get(serviceId);
 }
 
-function findOverlappingBooking(startsAt, endsAt) {
+function getActiveBarber(barberId) {
+  return db
+    .prepare(
+      `
+      SELECT id, name
+      FROM barbers
+      WHERE id = ? AND is_active = 1
+    `,
+    )
+    .get(barberId);
+}
+
+function findOverlappingBooking(barberId, startsAt, endsAt) {
   return db
     .prepare(
       `
       SELECT id
       FROM bookings
       WHERE status = 'confirmed'
+        AND barber_id = ?
         AND starts_at < ?
         AND ends_at > ?
       LIMIT 1
     `,
     )
-    .get(endsAt, startsAt);
+    .get(barberId, endsAt, startsAt);
 }
 
 const insertBooking = db.prepare(`
-  INSERT INTO bookings (service_id, client_name, client_phone, starts_at, ends_at, status)
-  VALUES (@serviceId, @clientName, @clientPhone, @startsAt, @endsAt, 'confirmed')
+  INSERT INTO bookings (service_id, barber_id, client_name, client_phone, starts_at, ends_at, status)
+  VALUES (@serviceId, @barberId, @clientName, @clientPhone, @startsAt, @endsAt, 'confirmed')
 `);
 
 const selectBookingById = db.prepare(`
@@ -53,6 +68,8 @@ const selectBookingById = db.prepare(`
     b.id,
     b.service_id AS serviceId,
     s.name AS serviceName,
+    b.barber_id AS barberId,
+    br.name AS barberName,
     b.client_name AS clientName,
     b.client_phone AS clientPhone,
     b.starts_at AS startsAt,
@@ -61,6 +78,7 @@ const selectBookingById = db.prepare(`
     b.created_at AS createdAt
   FROM bookings b
   JOIN services s ON s.id = b.service_id
+  LEFT JOIN barbers br ON br.id = b.barber_id
   WHERE b.id = ?
 `);
 
@@ -72,6 +90,8 @@ export function listBookings() {
         b.id,
         b.service_id AS serviceId,
         s.name AS serviceName,
+        b.barber_id AS barberId,
+        br.name AS barberName,
         b.client_name AS clientName,
         b.client_phone AS clientPhone,
         b.starts_at AS startsAt,
@@ -80,6 +100,7 @@ export function listBookings() {
         b.created_at AS createdAt
       FROM bookings b
       JOIN services s ON s.id = b.service_id
+      LEFT JOIN barbers br ON br.id = b.barber_id
       ORDER BY b.starts_at ASC
     `,
     )
@@ -88,9 +109,13 @@ export function listBookings() {
   return rows.map(mapBooking);
 }
 
-export function createBooking({ serviceId, startsAt, clientName, clientPhone }) {
+export function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone }) {
   if (!Number.isInteger(serviceId) || serviceId <= 0) {
     throw new HttpError(400, 'serviceId must be a positive integer');
+  }
+
+  if (!Number.isInteger(barberId) || barberId <= 0) {
+    throw new HttpError(400, 'barberId must be a positive integer');
   }
 
   const normalizedStartsAt = parseDateTimeParam(startsAt);
@@ -113,19 +138,25 @@ export function createBooking({ serviceId, startsAt, clientName, clientPhone }) 
     throw new HttpError(404, 'Service not found');
   }
 
+  const barber = getActiveBarber(barberId);
+  if (!barber) {
+    throw new HttpError(400, 'Barber not found');
+  }
+
   const endsAt = addMinutesToDateTime(normalizedStartsAt, service.durationMinutes);
   if (!endsAt) {
     throw new HttpError(400, 'Invalid startsAt value');
   }
 
   const create = db.transaction(() => {
-    const conflict = findOverlappingBooking(normalizedStartsAt, endsAt);
+    const conflict = findOverlappingBooking(barber.id, normalizedStartsAt, endsAt);
     if (conflict) {
       throw new HttpError(409, 'Selected time slot is no longer available');
     }
 
     const result = insertBooking.run({
       serviceId,
+      barberId: barber.id,
       clientName: trimmedName,
       clientPhone: trimmedPhone,
       startsAt: normalizedStartsAt,

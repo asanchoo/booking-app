@@ -10,9 +10,18 @@ export async function fetchServices() {
   return res.json();
 }
 
-export async function fetchSlots(serviceId, from, to) {
+export async function fetchBarbers() {
+  const res = await fetch('/api/barbers');
+  if (!res.ok) {
+    throw new Error('Не удалось загрузить список барберов');
+  }
+  return res.json();
+}
+
+export async function fetchSlots(serviceId, barberId, from, to) {
   const params = new URLSearchParams();
   if (serviceId) params.append('serviceId', serviceId);
+  if (barberId) params.append('barberId', barberId);
   if (from) params.append('from', from);
   if (to) params.append('to', to);
 
@@ -28,6 +37,7 @@ export async function createBooking(bookingData) {
   // Support both camelCase and snake_case inputs
   const payload = {
     serviceId: bookingData.serviceId || bookingData.service_id,
+    barberId: bookingData.barberId || bookingData.barber_id,
     startsAt: bookingData.startsAt || bookingData.start_time,
     clientName: bookingData.clientName || bookingData.customer_name,
     clientPhone: bookingData.clientPhone || bookingData.customer_phone,
@@ -54,9 +64,49 @@ export async function createBooking(bookingData) {
 }
 
 export async function fetchBookings() {
-  const res = await fetch('/api/bookings');
+  const res = await fetch('/api/bookings', {
+    credentials: 'include',
+  });
   if (!res.ok) {
-    throw new Error('Не удалось загрузить список записей администратора');
+    const data = await res.json().catch(() => ({}));
+    const error = new Error(data.error || 'Не удалось загрузить список записей администратора');
+    error.status = res.status;
+    throw error;
   }
+  return res.json();
+}
+
+export async function loginAdmin(username, password) {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ username, password }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    const error = new Error(data.error || 'Ошибка входа');
+    error.status = res.status;
+    throw error;
+  }
+
+  return data;
+}
+
+export async function logoutAdmin() {
+  const res = await fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return res.json();
+}
+
+export async function checkAuthStatus() {
+  const res = await fetch('/api/auth/me', {
+    credentials: 'include',
+  });
+  if (!res.ok) return { authenticated: false };
   return res.json();
 }

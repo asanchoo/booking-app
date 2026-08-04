@@ -26,9 +26,21 @@ const settings = [
   { key: 'timezone', value: 'Asia/Almaty' },
 ];
 
+const barbers = [
+  { name: 'Асанали', photo_url: null, sort_order: 1 },
+  { name: 'Диас', photo_url: null, sort_order: 2 },
+  { name: 'Султан', photo_url: null, sort_order: 3 },
+  { name: 'Арман', photo_url: null, sort_order: 4 },
+];
+
 const insertService = db.prepare(`
   INSERT INTO services (name, duration_minutes, price_cents, is_active)
   VALUES (@name, @duration_minutes, @price_cents, 1)
+`);
+
+const insertBarber = db.prepare(`
+  INSERT INTO barbers (name, photo_url, is_active, sort_order)
+  VALUES (@name, @photo_url, 1, @sort_order)
 `);
 
 const insertSetting = db.prepare(`
@@ -45,6 +57,16 @@ const seed = db.transaction(() => {
     console.log(`Seeded ${services.length} services.`);
   } else {
     console.log(`Services already exist (${serviceCount}), skipping.`);
+  }
+
+  const barberCount = db.prepare('SELECT COUNT(*) AS count FROM barbers').get().count;
+  if (barberCount === 0) {
+    for (const barber of barbers) {
+      insertBarber.run(barber);
+    }
+    console.log(`Seeded ${barbers.length} barbers.`);
+  } else {
+    console.log(`Barbers already exist (${barberCount}), skipping.`);
   }
 
   const settingsCount = db.prepare('SELECT COUNT(*) AS count FROM business_settings').get().count;

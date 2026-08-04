@@ -1,0 +1,154 @@
+.barber-card-v2 {
+  background: var(--bg-card, #FFFFFF);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.07));
+  border-radius: var(--radius-lg, 20px);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: var(--shadow-card, 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03));
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: stepIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.barber-card-v2:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover, 0 4px 24px rgba(0, 0, 0, 0.08));
+}
+
+.barber-card-v2.active-modal {
+  border-color: var(--primary, #C5A55A);
+  box-shadow: 0 0 0 1px var(--primary, #C5A55A), var(--shadow-hover, 0 4px 24px rgba(0, 0, 0, 0.08));
+}
+
+.barber-card-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.barber-avatar-wrapper-v2 {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--border-color, rgba(0, 0, 0, 0.07));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.barber-card-photo-v2 {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.barber-card-initials-v2 {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--primary, #C5A55A), #B89540);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.barber-info-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.barber-name-v2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main, #1A1A1A);
+  margin: 0;
+}
+
+.barber-title-v2 {
+  font-size: 0.82rem;
+  color: var(--text-muted, #71717A);
+  margin: 0;
+}
+
+.barber-slot-action-v2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.slots-three-row {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.slots-three-row::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-slot-chip {
+  flex: 1;
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 10px;
+  background: #1A1A1A;
+  color: #FFFFFF;
+  border-radius: var(--radius-md, 12px);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.quick-slot-chip:hover {
+  background: var(--primary, #C5A55A);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(197, 165, 90, 0.25);
+}
+
+.no-slot-badge-v2 {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg-input, #F3F2EE);
+  color: var(--text-dim, #A1A1AA);
+  border-radius: var(--radius-md, 14px);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.calendar-icon-btn-v2 {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-input, #F3F2EE);
+  color: var(--text-main, #1A1A1A);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.07));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.calendar-icon-btn-v2:hover,
+.calendar-icon-btn-v2.active {
+  background: var(--primary, #C5A55A);
+  color: #FFFFFF;
+  border-color: var(--primary, #C5A55A);
+}

@@ -2,12 +2,22 @@ import React, { useState } from 'react';
 import { User, Phone, Calendar, Clock, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
 import './BookingForm.css';
 
-export default function BookingForm({ service, slot, onSubmit, isLoading, errorMessage }) {
+export default function BookingForm({ service, barber, slot, onSubmit, isLoading, errorMessage }) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [formError, setFormError] = useState('');
 
   const slotTime = slot ? (slot.startsAt || slot.start_time) : null;
+
+  const getInitials = (name) => {
+    if (!name) return '';
+    return name
+      .split(' ')
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   const formatDate = (isoString) => {
     if (!isoString) return '';
@@ -52,6 +62,35 @@ export default function BookingForm({ service, slot, onSubmit, isLoading, errorM
           <span className="summary-label">Услуга:</span>
           <span className="summary-value highlight">{service.name}</span>
         </div>
+        {barber && (
+          <div className="summary-item">
+            <span className="summary-label">Мастер:</span>
+            <span className="summary-value barber-summary-value">
+              <div className="summary-barber-avatar">
+                {barber.photoUrl ? (
+                  <img
+                    src={barber.photoUrl}
+                    alt={barber.name}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                      if (e.target.nextSibling) {
+                        e.target.nextSibling.style.display = 'flex';
+                      }
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="summary-barber-initials"
+                  style={{ display: barber.photoUrl ? 'none' : 'flex' }}
+                >
+                  {getInitials(barber.name)}
+                </div>
+              </div>
+              <span>{barber.name}</span>
+            </span>
+          </div>
+        )}
         <div className="summary-item">
           <span className="summary-label">Длительность & Цена:</span>
           <span className="summary-value">

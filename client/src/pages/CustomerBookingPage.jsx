@@ -1,160 +1,265 @@
 import React, { useEffect, useState } from 'react';
-import { fetchServices, fetchSlots, createBooking } from '../api/bookingApi.js';
+import { fetchServices, fetchBarbers, fetchSlots, createBooking } from '../api/bookingApi.js';
 import ServiceCard from '../components/ServiceCard.jsx';
+import BarberCard from '../components/BarberCard.jsx';
 import SlotPicker from '../components/SlotPicker.jsx';
 import BookingForm from '../components/BookingForm.jsx';
-import { Scissors, CheckCircle, RefreshCw, AlertCircle, Home, RotateCcw } from 'lucide-react';
+import {
+  CheckCircle, AlertCircle, RotateCcw,
+  Scissors, X, Loader2, ArrowLeft,
+} from 'lucide-react';
 import './CustomerBookingPage.css';
 
+/* ── helpers ─────────────────────────────── */
+
+function toDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function fmtDateFull(iso) {
+  if (!iso) return '';
+  return new Intl.DateTimeFormat('ru-RU', {
+    weekday: 'long', day: 'numeric', month: 'long',
+    hour: '2-digit', minute: '2-digit',
+  }).format(new Date(iso));
+}
+
+function getPrice(s) {
+  const p = s.priceCents !== undefined ? s.priceCents / 100 : s.price;
+  return Number(p).toLocaleString('ru-RU');
+}
+
+function getDuration(s) {
+  return s.durationMinutes || s.duration_minutes;
+}
+
+/* ── component ───────────────────────────── */
+
 export default function CustomerBookingPage() {
+  /* state */
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
 
-  const [slots, setSlots] = useState([]);
+  const [barbers, setBarbers] = useState([]);
+  const [selectedBarber, setSelectedBarber] = useState(null);
+  const [nearestSlotsMap, setNearestSlotsMap] = useState({});
+
+  /* Modal state for step 2 calendar */
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    barberId: null,
+  });
+  const [modalSlots, setModalSlots] = useState([]);
+  const [loadingModalSlots, setLoadingModalSlots] = useState(false);
+
+  /* Selected slot for booking step */
   const [selectedSlot, setSelectedSlot] = useState(null);
 
-  const [isLoadingServices, setIsLoadingServices] = useState(true);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  /* Step source flag: 'quick' or 'modal' */
+  const [bookingSource, setBookingSource] = useState(null);
 
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [loadingBarbers, setLoadingBarbers] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [bookingSuccess, setBookingSuccess] = useState(null);
+  const [success, setSuccess] = useState(null);
 
-  // 1. Fetch services on mount
+  /* derived step: 1 = service, 2 = barber/time, 3 = form, 'ok' = success */
+  const step = success
+    ? 'ok'
+    : selectedSlot && selectedBarber
+      ? 3
+      : selectedService
+        ? 2
+        : 1;
+
+  /* ── data loading ─────────────────────── */
+
   useEffect(() => {
-    loadServices();
+    (async () => {
+      setLoadingServices(true);
+      try {
+        setServices(await fetchServices());
+      } catch (err) {
+        setError(err.message || 'Ошибка загрузки услуг');
+      } finally {
+        setLoadingServices(false);
+      }
+    })();
   }, []);
 
-  const loadServices = async () => {
-    setIsLoadingServices(true);
-    setError('');
-    try {
-      const data = await fetchServices();
-      setServices(data);
-      if (data.length > 0) {
-        setSelectedService(data[0]); // Default first service
-      }
-    } catch (err) {
-      setError(err.message || 'Ошибка загрузки услуг');
-    } finally {
-      setIsLoadingServices(false);
-    }
-  };
-
-  // 2. Fetch slots when selected service changes
+  /* When service is selected → load barbers + top 3 nearest future slots */
   useEffect(() => {
-    if (selectedService) {
-      loadSlots(selectedService.id);
-    }
+    if (!selectedService) return;
+
+    let cancelled = false;
+    (async () => {
+      setLoadingBarbers(true);
+      setError('');
+
+      try {
+        const barbersList = await fetchBarbers();
+        if (cancelled) return;
+        setBarbers(barbersList);
+
+        const today = toDateStr();
+        const end = new Date();
+        end.setDate(end.getDate() + 7);
+        const toDate = toDateStr(end);
+        const now = new Date();
+
+        const results = await Promise.all(
+          barbersList.map((b) =>
+            fetchSlots(selectedService.id, b.id, today, toDate)
+              .then((slots) => ({ barberId: b.id, slots }))
+              .catch(() => ({ barberId: b.id, slots: [] })),
+          ),
+        );
+        if (cancelled) return;
+
+        const nearestMap = {};
+        results.forEach(({ barberId, slots }) => {
+          const futureSlots = (Array.isArray(slots) ? slots : []).filter(
+            (s) => new Date(s.startsAt || s.start_time) > now,
+          );
+          nearestMap[barberId] = futureSlots.slice(0, 3);
+        });
+        setNearestSlotsMap(nearestMap);
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Ошибка загрузки мастеров');
+      } finally {
+        if (!cancelled) setLoadingBarbers(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [selectedService]);
 
-  const loadSlots = async (serviceId) => {
-    setIsLoadingSlots(true);
-    setError('');
-    setSelectedSlot(null);
+  /* ── handlers ─────────────────────────── */
+
+  const handleQuickBook = (barber, slot) => {
+    setSelectedBarber(barber);
+    setSelectedSlot(slot);
+    setBookingSource('quick');
+  };
+
+  const handleOpenModal = async (barber) => {
+    setModalState({
+      isOpen: true,
+      barberId: barber.id,
+    });
+    setLoadingModalSlots(true);
     try {
-      const data = await fetchSlots(serviceId);
-      setSlots(data);
-    } catch (err) {
-      setError(err.message || 'Ошибка загрузки слотов');
+      const from = toDateStr();
+      const end = new Date();
+      end.setDate(end.getDate() + 7);
+      const to = toDateStr(end);
+      const data = await fetchSlots(
+        selectedService.id, barber.id,
+        from, to,
+      );
+      setModalSlots(Array.isArray(data) ? data : []);
+    } catch {
+      setModalSlots([]);
     } finally {
-      setIsLoadingSlots(false);
+      setLoadingModalSlots(false);
     }
   };
 
-  const handleSelectService = (service) => {
-    if (selectedService?.id !== service.id) {
-      setSelectedService(service);
+  const handleCloseModal = () => {
+    setModalState({ isOpen: false, barberId: null });
+  };
+
+  const handleSlotFromModal = (slot) => {
+    const barber = barbers.find((b) => b.id === modalState.barberId);
+    if (barber) {
+      setSelectedBarber(barber);
+      setSelectedSlot(slot);
+      setBookingSource('modal');
+      // Notice: we keep modalState intact (or re-opened) so if user clicks Back on step 3, modal reopens seamlessly!
     }
   };
 
-  const handleBookingSubmit = async (bookingData) => {
-    setIsSubmitting(true);
+  const handleSubmit = async (formData) => {
+    setSubmitting(true);
     setError('');
     try {
-      const response = await createBooking(bookingData);
-      setBookingSuccess(response);
+      const res = await createBooking({ ...formData, barberId: selectedBarber.id });
+      setSuccess(res);
     } catch (err) {
       if (err.status === 409) {
-        // Slot conflict handler
-        setError('Извините, этот слот только что забронировал другой клиент. Мы обновили расписание, пожалуйста, выберите другое время.');
-        // Reload slots to get fresh schedule
-        if (selectedService) {
-          loadSlots(selectedService.id);
-        }
+        setError('Этот слот уже занят. Пожалуйста, выберите другое время.');
+        setSelectedSlot(null);
       } else {
-        setError(err.message || 'Произошла ошибка при бронировании');
+        setError(err.message || 'Ошибка при бронировании');
       }
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  const resetBooking = () => {
-    setBookingSuccess(null);
+  const handleBack = () => {
+    if (step === 3) {
+      // Returning to step 2 while preserving modal state if booking came from modal!
+      setSelectedSlot(null);
+      if (bookingSource === 'quick') {
+        setSelectedBarber(null);
+        setModalState({ isOpen: false, barberId: null });
+      }
+      // If source === 'modal', selectedBarber and modalState stay active so modal opens automatically!
+    } else if (step === 2) {
+      setSelectedService(null);
+      setSelectedBarber(null);
+      setSelectedSlot(null);
+      setModalState({ isOpen: false, barberId: null });
+      setBarbers([]);
+      setNearestSlotsMap({});
+    }
+  };
+
+  const resetAll = () => {
+    setSuccess(null);
     setSelectedSlot(null);
-    if (selectedService) {
-      loadSlots(selectedService.id);
-    }
+    setSelectedBarber(null);
+    setSelectedService(null);
+    setModalState({ isOpen: false, barberId: null });
+    setBookingSource(null);
+    setBarbers([]);
+    setNearestSlotsMap({});
   };
 
-  const goToMainMenu = () => {
-    setBookingSuccess(null);
-    setSelectedSlot(null);
-    if (services.length > 0) {
-      setSelectedService(services[0]);
-      loadSlots(services[0].id);
-    }
-  };
+  /* ── render: success ──────────────────── */
 
-  if (bookingSuccess) {
-    const booking = bookingSuccess.booking || bookingSuccess;
-    const bookingTime = booking.startsAt || booking.start_time;
-    const formattedTime = bookingTime
-      ? new Date(bookingTime).toLocaleString('ru-RU', {
-          day: 'numeric',
-          month: 'long',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '';
-
+  if (step === 'ok') {
+    const bk = success.booking || success;
     return (
-      <div className="page-container center-content">
-        <div className="success-card glass-panel animate-fade-in">
-          <div className="success-icon-wrapper">
-            <CheckCircle size={48} className="success-icon" />
-          </div>
-          <h2>Вы успешно записаны!</h2>
-          <p className="success-subtitle">Ждем вас в BarberShop к назначенному времени.</p>
+      <div className="customer-page">
+        <div className="cp-wrap cp-center">
+          <div className="cp-success step-in">
+            <div className="cp-success-icon">
+              <CheckCircle size={48} />
+            </div>
+            <h2 className="cp-success-title">Вы записаны!</h2>
+            <p className="cp-success-sub">Ждём вас в назначенное время</p>
 
-          <div className="success-details">
-            <div className="detail-row">
-              <span>Услуга:</span>
-              <strong>{booking.serviceName || booking.service_name || selectedService?.name}</strong>
+            <div className="cp-success-info">
+              {[
+                ['Услуга', bk.serviceName || selectedService?.name],
+                ['Мастер', bk.barberName || selectedBarber?.name],
+                ['Время', fmtDateFull(bk.startsAt || bk.start_time)],
+                ['Имя', bk.clientName || bk.customer_name],
+                ['Телефон', bk.clientPhone || bk.customer_phone],
+              ].map(([label, value]) => (
+                <div key={label} className="cp-info-row">
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
             </div>
-            <div className="detail-row">
-              <span>Дата и время:</span>
-              <strong className="time-highlight">{formattedTime}</strong>
-            </div>
-            <div className="detail-row">
-              <span>Имя клиента:</span>
-              <strong>{booking.clientName || booking.customer_name}</strong>
-            </div>
-            <div className="detail-row">
-              <span>Телефон:</span>
-              <strong>{booking.clientPhone || booking.customer_phone}</strong>
-            </div>
-          </div>
 
-          <div className="success-actions">
-            <button onClick={resetBooking} className="action-button secondary-btn">
+            <button className="cp-btn-dark" onClick={resetAll}>
               <RotateCcw size={18} />
-              <span>Записаться ещё раз</span>
-            </button>
-            <button onClick={goToMainMenu} className="action-button primary-btn">
-              <Home size={18} />
-              <span>Главное меню</span>
+              <span>Записаться снова</span>
             </button>
           </div>
         </div>
@@ -162,86 +267,168 @@ export default function CustomerBookingPage() {
     );
   }
 
+  /* ── render: main flow ────────────────── */
+
+  const modalBarber = barbers.find((b) => b.id === modalState.barberId);
+  const isModalVisible = step === 2 && modalState.isOpen && modalBarber;
+
   return (
-    <div className="page-container">
-      <div className="hero-header">
-        <h1 className="hero-title">
-          Онлайн запись в <span className="gold-text">BARBERSHOP</span>
-        </h1>
-        <p className="hero-subtitle">
-          Выберите подходящую услугу, мастер и удобное время за пару кликов.
-        </p>
-      </div>
+    <div className="customer-page">
+      <div className="cp-wrap">
+        {/* Header */}
+        <header className="cp-header step-in">
+          <p className="cp-tagline">Онлайн запись</p>
+          <h1 className="cp-brand">BARBERSHOP</h1>
+        </header>
 
-      {error && (
-        <div className="global-error-banner animate-fade-in">
-          <AlertCircle size={20} />
-          <span>{error}</span>
-        </div>
-      )}
+        {/* Progress indicator */}
+        <nav className="cp-progress step-in" aria-label="Шаги записи">
+          {['Услуга', 'Мастер и время', 'Запись'].map((label, i) => {
+            const num = i + 1;
+            const isActive = step === num;
+            const isDone = typeof step === 'number' && step > num;
+            return (
+              <React.Fragment key={num}>
+                {i > 0 && <div className={`cp-prog-line${isDone ? ' done' : ''}`} />}
+                <div className={`cp-prog-step${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}>
+                  <div className="cp-prog-dot">{isDone ? '✓' : num}</div>
+                  <span className="cp-prog-label">{label}</span>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </nav>
 
-      {/* Step 1: Select Service */}
-      <section className="booking-section">
-        <h2 className="step-heading">
-          <span className="step-number">1</span>Выберите услугу
-        </h2>
-
-        {isLoadingServices ? (
-          <div className="loading-state">
-            <RefreshCw className="spinner" size={24} />
-            <span>Загружаем список услуг...</span>
-          </div>
-        ) : (
-          <div className="services-grid">
-            {services.map((service) => (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                isSelected={selectedService?.id === service.id}
-                onSelect={handleSelectService}
-              />
-            ))}
+        {/* Error */}
+        {error && (
+          <div className="cp-error step-in">
+            <AlertCircle size={18} />
+            <span>{error}</span>
+            <button onClick={() => setError('')} aria-label="Закрыть"><X size={16} /></button>
           </div>
         )}
-      </section>
 
-      {/* Step 2: Select Slot */}
-      {selectedService && (
-        <section className="booking-section animate-fade-in">
-          <h2 className="step-heading">
-            <span className="step-number">2</span>Выберите доступное время
-          </h2>
+        {/* Selected service bar (shown in steps 2 and 3) */}
+        {typeof step === 'number' && step >= 2 && (
+          <div className="cp-selected-bar step-in">
+            <Scissors size={16} className="cp-bar-icon" />
+            <span className="cp-bar-name">{selectedService.name}</span>
+            <span className="cp-bar-meta">
+              {getDuration(selectedService)} мин · {getPrice(selectedService)} ₽
+            </span>
+            <button className="cp-bar-change" onClick={handleBack}>Изменить</button>
+          </div>
+        )}
 
-          {isLoadingSlots ? (
-            <div className="loading-state">
-              <RefreshCw className="spinner" size={24} />
-              <span>Поиск доступных слотов...</span>
+        {/* ── Step 1: Select service ── */}
+        {step === 1 && (
+          <section className="cp-section step-in">
+            <h2 className="cp-heading">Выберите услугу</h2>
+            {loadingServices ? (
+              <div className="cp-loading">
+                <Loader2 size={24} className="spin" />
+                <span>Загрузка услуг…</span>
+              </div>
+            ) : (
+              <div className="cp-grid-services">
+                {services.map((service, i) => (
+                  <div key={service.id} className="card-stagger" style={{ animationDelay: `${i * 60}ms` }}>
+                    <ServiceCard
+                      service={service}
+                      isSelected={false}
+                      onSelect={() => setSelectedService(service)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Step 2: Select barber + time ── */}
+        {step === 2 && (
+          <section className="cp-section step-in">
+            <h2 className="cp-heading">Выберите мастера</h2>
+            {loadingBarbers ? (
+              <div className="cp-loading">
+                <Loader2 size={24} className="spin" />
+                <span>Загрузка мастеров…</span>
+              </div>
+            ) : (
+              <div className="cp-grid-barbers">
+                {barbers.map((barber, i) => (
+                  <BarberCard
+                    key={barber.id}
+                    barber={barber}
+                    nearestSlots={nearestSlotsMap[barber.id] || []}
+                    modalState={modalState}
+                    onQuickBook={handleQuickBook}
+                    onOpenModal={handleOpenModal}
+                    delay={i * 80}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Modal overlay for Step 2 Calendar ── */}
+        {isModalVisible && (
+          <div className="cp-modal-backdrop step-in" onClick={handleCloseModal}>
+            <div className="cp-modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="cp-modal-header">
+                <h3>
+                  Расписание: <strong>{modalBarber.name}</strong>
+                </h3>
+                <button
+                  className="cp-modal-close"
+                  onClick={handleCloseModal}
+                  aria-label="Закрыть"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="cp-modal-body">
+                {loadingModalSlots ? (
+                  <div className="cp-loading sm">
+                    <Loader2 size={22} className="spin" />
+                    <span>Загрузка доступного времени…</span>
+                  </div>
+                ) : (
+                  <SlotPicker
+                    slots={modalSlots}
+                    selectedSlot={selectedSlot}
+                    onSelectSlot={handleSlotFromModal}
+                  />
+                )}
+              </div>
             </div>
-          ) : (
-            <SlotPicker
-              slots={slots}
-              selectedSlot={selectedSlot}
-              onSelectSlot={(slot) => setSelectedSlot(slot)}
-            />
-          )}
-        </section>
-      )}
+          </div>
+        )}
 
-      {/* Step 3: Fill Details */}
-      {selectedService && selectedSlot && (
-        <section className="booking-section animate-fade-in">
-          <h2 className="step-heading">
-            <span className="step-number">3</span>Подтверждение записи
-          </h2>
-          <BookingForm
-            service={selectedService}
-            slot={selectedSlot}
-            onSubmit={handleBookingSubmit}
-            isLoading={isSubmitting}
-            errorMessage={''}
-          />
-        </section>
-      )}
+        {/* ── Step 3: Booking form ── */}
+        {step === 3 && (
+          <section className="cp-section step-in">
+            <button className="cp-back-btn" onClick={handleBack}>
+              <ArrowLeft size={18} />
+              <span>
+                {bookingSource === 'modal'
+                  ? `Назад к расписанию (${selectedBarber?.name})`
+                  : 'Назад к выбору мастера'}
+              </span>
+            </button>
+            <BookingForm
+              service={selectedService}
+              barber={selectedBarber}
+              slot={selectedSlot}
+              onSubmit={handleSubmit}
+              isLoading={submitting}
+              errorMessage=""
+            />
+          </section>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,79 +2,76 @@
   margin-top: 24px;
 }
 
+.slot-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .section-title {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 1.2rem;
   font-weight: 700;
-  margin-bottom: 20px;
   color: var(--text-main);
+  margin: 0;
 }
 
 .title-icon {
   color: var(--primary);
 }
 
-.days-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 8px;
+.date-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.day-column {
+.date-picker-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--primary);
+  pointer-events: none;
+}
+
+.date-picker-input {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px 8px 38px;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color-scheme: dark;
 }
 
-.day-header {
-  text-align: center;
-  padding-bottom: 10px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.date-picker-input:hover, .date-picker-input:focus {
+  border-color: var(--primary);
+  background: var(--bg-card-hover);
 }
 
-.day-header.today .day-name {
-  color: var(--primary);
-  font-weight: 800;
-}
-
-.day-name {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.day-date {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
-.slots-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.single-day-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
 }
 
 .slot-button {
   width: 100%;
-  padding: 10px 0;
+  padding: 12px 0;
   text-align: center;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   color: var(--text-main);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   transition: all 0.2s ease;
 }
