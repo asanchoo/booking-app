@@ -4,6 +4,8 @@ import express from 'express';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import authRouter from './routes/auth.js';
+import clientAuthRouter from './routes/clientAuth.js';
+import myBookingsRouter from './routes/myBookings.js';
 import barbersRouter from './routes/barbers.js';
 import bookingsRouter from './routes/bookings.js';
 import servicesRouter from './routes/services.js';
@@ -26,14 +28,20 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Admin Auth
 app.use('/api/auth', authRouter);
+
+// Client Auth (OTP) & Client Profile
+app.use('/api/client-auth', clientAuthRouter);
+app.use('/api/my-bookings', myBookingsRouter);
+
+// Public Booking Routes
 app.use('/api/barbers', barbersRouter);
 app.use('/api/services', servicesRouter);
 app.use('/api/slots', slotsRouter);
-
 app.use('/api/bookings', bookingsRouter);
 
-// Protected routes
+// Protected Admin Routes
 app.use('/api/admin/services', requireAuth, adminServicesRouter);
 app.use('/api/admin/barbers', requireAuth, adminBarbersRouter);
 app.use('/api/admin/settings', requireAuth, settingsRouter);
@@ -41,4 +49,3 @@ app.use('/api/admin/settings', requireAuth, settingsRouter);
 app.use(errorHandler);
 
 export default app;
-

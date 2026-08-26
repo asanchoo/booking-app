@@ -81,7 +81,8 @@ export async function loginAdmin(username, password) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ username, password }),
+    // Unified endpoint accepts "login" field (admin username or client phone)
+    body: JSON.stringify({ login: username, password }),
   });
 
   const data = await res.json();
@@ -94,6 +95,7 @@ export async function loginAdmin(username, password) {
 
   return data;
 }
+
 
 export async function logoutAdmin() {
   const res = await fetch('/api/auth/logout', {

@@ -151,7 +151,7 @@ export default function AdminServices({ onAuthError }) {
                   <tr key={svc.id}>
                     <td className="cell-bold">{svc.name}</td>
                     <td>{svc.durationMinutes} мин</td>
-                    <td>{(svc.priceCents / 100).toLocaleString('ru-RU')} ₽</td>
+                    <td>{(svc.priceCents / 100).toLocaleString('ru-RU')} ₸</td>
                     <td><span className="status-pill confirmed">Активна</span></td>
                     <td>
                       <div className="action-buttons">
@@ -188,7 +188,7 @@ export default function AdminServices({ onAuthError }) {
                       <tr key={svc.id}>
                         <td className="cell-bold cell-dim">{svc.name}</td>
                         <td>{svc.durationMinutes} мин</td>
-                        <td>{(svc.priceCents / 100).toLocaleString('ru-RU')} ₽</td>
+                        <td>{(svc.priceCents / 100).toLocaleString('ru-RU')} ₸</td>
                         <td><span className="status-pill cancelled">Архив</span></td>
                         <td>
                           <div className="action-buttons">
@@ -225,7 +225,7 @@ export default function AdminServices({ onAuthError }) {
                 <input type="number" required min="1" value={formDuration} onChange={(e) => setFormDuration(e.target.value)} />
               </label>
               <label className="form-label">
-                Цена (₽)
+                Цена (₸)
                 <input type="number" required min="0" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} />
               </label>
               {error && <div className="form-error">{error}</div>}

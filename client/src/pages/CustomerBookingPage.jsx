@@ -4,9 +4,10 @@ import ServiceCard from '../components/ServiceCard.jsx';
 import BarberCard from '../components/BarberCard.jsx';
 import SlotPicker from '../components/SlotPicker.jsx';
 import BookingForm from '../components/BookingForm.jsx';
+import { generateTelegramLink, checkTelegramStatus, checkClientAuth } from '../api/clientAuthApi.js';
 import {
   CheckCircle, AlertCircle, RotateCcw,
-  Scissors, X, Loader2, ArrowLeft,
+  Scissors, X, Loader2, ArrowLeft, Send, ExternalLink,
 } from 'lucide-react';
 import './CustomerBookingPage.css';
 
@@ -63,6 +64,7 @@ export default function CustomerBookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
+  const [clientAuth, setClientAuth] = useState(null);
 
   /* derived step: 1 = service, 2 = barber/time, 3 = form, 'ok' = success */
   const step = success
@@ -79,7 +81,14 @@ export default function CustomerBookingPage() {
     (async () => {
       setLoadingServices(true);
       try {
-        setServices(await fetchServices());
+        const [servicesData, authData] = await Promise.all([
+          fetchServices(),
+          checkClientAuth().catch(() => ({ authenticated: false })),
+        ]);
+        setServices(servicesData);
+        if (authData?.authenticated) {
+          setClientAuth(authData);
+        }
       } catch (err) {
         setError(err.message || 'Ошибка загрузки услуг');
       } finally {
@@ -232,40 +241,11 @@ export default function CustomerBookingPage() {
 
   if (step === 'ok') {
     const bk = success.booking || success;
-    return (
-      <div className="customer-page">
-        <div className="cp-wrap cp-center">
-          <div className="cp-success step-in">
-            <div className="cp-success-icon">
-              <CheckCircle size={48} />
-            </div>
-            <h2 className="cp-success-title">Вы записаны!</h2>
-            <p className="cp-success-sub">Ждём вас в назначенное время</p>
+    const phone = bk.clientPhone || bk.customer_phone || bk.phone;
 
-            <div className="cp-success-info">
-              {[
-                ['Услуга', bk.serviceName || selectedService?.name],
-                ['Мастер', bk.barberName || selectedBarber?.name],
-                ['Время', fmtDateFull(bk.startsAt || bk.start_time)],
-                ['Имя', bk.clientName || bk.customer_name],
-                ['Телефон', bk.clientPhone || bk.customer_phone],
-              ].map(([label, value]) => (
-                <div key={label} className="cp-info-row">
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                </div>
-              ))}
-            </div>
-
-            <button className="cp-btn-dark" onClick={resetAll}>
-              <RotateCcw size={18} />
-              <span>Записаться снова</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <SuccessScreen bk={bk} phone={phone} selectedService={selectedService} selectedBarber={selectedBarber} resetAll={resetAll} />;
   }
+
 
   /* ── render: main flow ────────────────── */
 
@@ -314,7 +294,7 @@ export default function CustomerBookingPage() {
             <Scissors size={16} className="cp-bar-icon" />
             <span className="cp-bar-name">{selectedService.name}</span>
             <span className="cp-bar-meta">
-              {getDuration(selectedService)} мин · {getPrice(selectedService)} ₽
+              {getDuration(selectedService)} мин · {getPrice(selectedService)} ₸
             </span>
             <button className="cp-bar-change" onClick={handleBack}>Изменить</button>
           </div>
@@ -425,6 +405,7 @@ export default function CustomerBookingPage() {
               onSubmit={handleSubmit}
               isLoading={submitting}
               errorMessage=""
+              clientAuth={clientAuth}
             />
           </section>
         )}
@@ -432,3 +413,129 @@ export default function CustomerBookingPage() {
     </div>
   );
 }
+
+function SuccessScreen({ bk, phone, selectedService, selectedBarber, resetAll }) {
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [telegramHint, setTelegramHint] = useState(false);
+  const [isTelegramLinked, setIsTelegramLinked] = useState(false);
+
+  useEffect(() => {
+    if (!phone) return;
+    checkTelegramStatus(phone)
+      .then((res) => setIsTelegramLinked(Boolean(res?.linked)))
+      .catch(() => setIsTelegramLinked(false));
+  }, [phone]);
+
+  const handleLinkTelegram = async () => {
+    if (!phone) return;
+    setTelegramLoading(true);
+    try {
+      const { link } = await generateTelegramLink(phone);
+      window.open(link, '_blank');
+      setTelegramHint(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTelegramLoading(false);
+    }
+  };
+
+  return (
+    <div className="customer-page">
+      <div className="cp-wrap cp-center">
+        <div className="cp-success step-in">
+          <div className="cp-success-icon">
+            <CheckCircle size={48} />
+          </div>
+          <h2 className="cp-success-title">Вы записаны!</h2>
+          <p className="cp-success-sub">Ждём вас в назначенное время</p>
+
+          <div className="cp-success-info">
+            {[
+              ['Услуга', bk.serviceName || selectedService?.name],
+              ['Мастер', bk.barberName || selectedBarber?.name],
+              ['Время', fmtDateFull(bk.startsAt || bk.start_time)],
+              ['Имя', bk.clientName || bk.customer_name],
+              ['Телефон', bk.clientPhone || bk.customer_phone],
+            ].map(([label, value]) => (
+              <div key={label} className="cp-info-row">
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
+
+          {/* Telegram linking banner for guest / quick booking (shown only if not linked) */}
+          {!isTelegramLinked && (
+            <div style={{
+              background: '#F0F9FF',
+              border: '1px solid #BAE6FD',
+              borderRadius: '16px',
+              padding: '16px 20px',
+              marginTop: '20px',
+              textAlign: 'left',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  background: '#0284C7', color: '#FFF',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, marginTop: '2px',
+                }}>
+                  <Send size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: '700', color: '#0C4A6E' }}>
+                    📱 Привяжите Telegram, чтобы получать уведомления и управлять записью
+                  </h4>
+                  <p style={{ margin: '0 0 12px', fontSize: '0.82rem', color: '#0369A1', lineHeight: 1.4 }}>
+                    Вы сможете просматривать и отменять записи прямо в мессенджере в один клик.
+                  </p>
+
+                  <div>
+                    <button
+                      onClick={handleLinkTelegram}
+                      disabled={telegramLoading}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '9px 16px',
+                        borderRadius: '10px',
+                        background: '#0284C7',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: '0.85rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {telegramLoading ? <Loader2 size={16} className="spin" /> : (
+                        <>
+                          <Send size={15} />
+                          <span>Привязать Telegram</span>
+                          <ExternalLink size={13} />
+                        </>
+                      )}
+                    </button>
+                    {telegramHint && (
+                      <span style={{ display: 'block', marginTop: '6px', fontSize: '0.78rem', color: '#0284C7', fontWeight: '600' }}>
+                        Нажмите Start в открывшемся чате Telegram
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button className="cp-btn-dark" onClick={resetAll} style={{ marginTop: '24px' }}>
+            <RotateCcw size={18} />
+            <span>Записаться снова</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

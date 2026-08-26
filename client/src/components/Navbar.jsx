@@ -1,10 +1,33 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Scissors, ShieldCheck, CalendarCheck } from 'lucide-react';
+import { Scissors, CalendarCheck, User, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
 import './Navbar.css';
 
 export default function Navbar() {
   const location = useLocation();
+  const { authenticated, role } = useAuth();
+
+  // Determine target path for the single "Личный кабинет" / "Кабинет" button:
+  // - If not logged in -> /login
+  // - If logged in as admin -> /admin
+  // - If logged in as client -> /my-account
+  const getAccountLink = () => {
+    if (!authenticated) return '/login';
+    if (role === 'admin') return '/admin';
+    return '/my-account';
+  };
+
+  const getAccountLabel = () => {
+    if (!authenticated) return 'Личный кабинет';
+    if (role === 'admin') return 'Админ-панель';
+    return 'Мои записи';
+  };
+
+  const isAccountActive =
+    location.pathname === '/login' ||
+    location.pathname === '/my-account' ||
+    location.pathname === '/admin';
 
   return (
     <header className="navbar-header">
@@ -13,24 +36,26 @@ export default function Navbar() {
           <div className="brand-icon">
             <Scissors size={22} className="scissors-icon" />
           </div>
-          <span className="brand-name">BARBER<span className="brand-accent">SHOP</span></span>
+          <span className="brand-name">
+            BARBER<span className="brand-accent">SHOP</span>
+          </span>
         </Link>
 
         <nav className="navbar-links">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
           >
             <CalendarCheck size={18} />
             <span>Записаться</span>
           </Link>
 
-          <Link 
-            to="/admin" 
-            className={`nav-item ${location.pathname === '/admin' ? 'active' : ''}`}
+          <Link
+            to={getAccountLink()}
+            className={`nav-item ${isAccountActive ? 'active' : ''}`}
           >
-            <ShieldCheck size={18} />
-            <span>Админ-панель</span>
+            {role === 'admin' ? <ShieldCheck size={18} /> : <User size={18} />}
+            <span>{getAccountLabel()}</span>
           </Link>
         </nav>
       </div>

@@ -1,11 +1,22 @@
-import React, { useState } from 'react';
-import { User, Phone, Calendar, Clock, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Phone, Calendar, Clock, AlertTriangle, ArrowRight, Loader2, Lock } from 'lucide-react';
 import './BookingForm.css';
 
-export default function BookingForm({ service, barber, slot, onSubmit, isLoading, errorMessage }) {
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+export default function BookingForm({ service, barber, slot, onSubmit, isLoading, errorMessage, clientAuth }) {
+  const isClientLoggedIn = Boolean(clientAuth?.authenticated && clientAuth?.phone);
+
+  const [customerName, setCustomerName] = useState(clientAuth?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(clientAuth?.phone || '');
   const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    if (clientAuth?.name && !customerName) {
+      setCustomerName(clientAuth.name);
+    }
+    if (clientAuth?.phone) {
+      setCustomerPhone(clientAuth.phone);
+    }
+  }, [clientAuth]);
 
   const slotTime = slot ? (slot.startsAt || slot.start_time) : null;
 
@@ -40,7 +51,9 @@ export default function BookingForm({ service, barber, slot, onSubmit, isLoading
       return;
     }
 
-    if (!customerPhone.trim() || customerPhone.trim().length < 6) {
+    const finalPhone = isClientLoggedIn ? clientAuth.phone : customerPhone.trim();
+
+    if (!finalPhone || finalPhone.length < 6) {
       setFormError('Пожалуйста, введите корректный номер телефона');
       return;
     }
@@ -49,7 +62,7 @@ export default function BookingForm({ service, barber, slot, onSubmit, isLoading
       serviceId: service.id,
       startsAt: slotTime,
       clientName: customerName.trim(),
-      clientPhone: customerPhone.trim(),
+      clientPhone: finalPhone,
     });
   };
 
@@ -96,7 +109,7 @@ export default function BookingForm({ service, barber, slot, onSubmit, isLoading
           <span className="summary-value">
             {service.durationMinutes || service.duration_minutes} мин / {
               service.priceCents !== undefined ? service.priceCents / 100 : service.price
-            } ₽
+            } ₸
           </span>
         </div>
         <div className="summary-item">
@@ -134,19 +147,41 @@ export default function BookingForm({ service, barber, slot, onSubmit, isLoading
         </div>
 
         <div className="input-group">
-          <label htmlFor="customerPhone">
-            <Phone size={16} /> Номер телефона
-          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <label htmlFor="customerPhone" style={{ margin: 0 }}>
+              <Phone size={16} /> Номер телефона
+            </label>
+            {isClientLoggedIn && (
+              <span style={{ fontSize: '0.78rem', color: '#16A34A', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Lock size={12} /> Аккаунт
+              </span>
+            )}
+          </div>
+
           <input
             id="customerPhone"
             type="tel"
-            placeholder="+7 (999) 000-00-00"
-            value={customerPhone}
+            placeholder="Введите номер телефона"
+            value={isClientLoggedIn ? clientAuth.phone : customerPhone}
             onChange={(e) => {
-              setCustomerPhone(e.target.value);
-              if (formError) setFormError('');
+              if (!isClientLoggedIn) {
+                setCustomerPhone(e.target.value);
+                if (formError) setFormError('');
+              }
             }}
-            disabled={isLoading}
+            disabled={isLoading || isClientLoggedIn}
+            readOnly={isClientLoggedIn}
+            style={
+              isClientLoggedIn
+                ? {
+                    background: '#F4F4F5',
+                    color: '#18181B',
+                    cursor: 'not-allowed',
+                    borderColor: '#E4E4E7',
+                    fontWeight: '600',
+                  }
+                : {}
+            }
           />
         </div>
 

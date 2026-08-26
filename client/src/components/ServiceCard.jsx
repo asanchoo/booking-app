@@ -26,7 +26,7 @@ export default function ServiceCard({ service, isSelected, onSelect }) {
           {(() => {
             const rawPrice = service.priceCents !== undefined ? service.priceCents / 100 : service.price;
             const priceNum = Number(rawPrice);
-            return isNaN(priceNum) ? '—' : `${priceNum.toLocaleString('ru-RU')} ₽`;
+            return isNaN(priceNum) ? '—' : `${priceNum.toLocaleString('ru-RU')} ₸`;
           })()}
         </div>
       </div>

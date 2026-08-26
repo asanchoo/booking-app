@@ -1,0 +1,2 @@
+ALTER TABLE bookings ADD COLUMN reminder_3h_sent INTEGER DEFAULT 0;
+ALTER TABLE bookings ADD COLUMN reminder_1h_sent INTEGER DEFAULT 0;
