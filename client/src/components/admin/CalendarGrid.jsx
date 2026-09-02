@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Coffee } from 'lucide-react';
 
 function toDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -26,7 +26,7 @@ const TIME_SLOTS = [
   '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00',
 ];
 
-export default function CalendarGrid({ barbers = [], bookings = [], selectedBooking, onSelectBooking }) {
+export default function CalendarGrid({ barbers = [], bookings = [], timeBlocks = [], selectedBooking, onSelectBooking }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showDateInput, setShowDateInput] = useState(false);
 
@@ -53,6 +53,12 @@ export default function CalendarGrid({ barbers = [], bookings = [], selectedBook
       const bTime = startsAt.split('T')[1]?.slice(0, 5);
       return bTime === timeSlot;
     });
+  };
+
+  const getBlockForSlot = (barberId, timeSlot) => {
+    const slotStart = new Date(`${currentDateStr}T${timeSlot}:00`);
+    const slotEnd = new Date(slotStart.getTime() + 30 * 60000);
+    return timeBlocks.find((block) => block.masterId === barberId && new Date(block.startsAt) < slotEnd && new Date(block.endsAt) > slotStart);
   };
 
   const isToday = toDateStr(new Date()) === currentDateStr;
@@ -154,7 +160,7 @@ export default function CalendarGrid({ barbers = [], bookings = [], selectedBook
                 </div>
                 <div className="grid-barber-name-info">
                   <span className="grid-barber-name">{b.name}</span>
-                  <span className="grid-barber-role">Барбер</span>
+                  <span className="grid-barber-role">Мастер</span>
                 </div>
               </div>
             ))}
@@ -169,12 +175,13 @@ export default function CalendarGrid({ barbers = [], bookings = [], selectedBook
                 </div>
                 {activeBarbers.map((b) => {
                   const booking = getBookingForSlot(b.id, timeSlot);
+                  const timeBlock = getBlockForSlot(b.id, timeSlot);
                   const isSelected = selectedBooking && selectedBooking.id === booking?.id;
 
                   return (
                     <div
                       key={`${b.id}-${timeSlot}`}
-                      className={`grid-slot-cell ${booking ? 'has-booking' : 'empty'}`}
+                      className={`grid-slot-cell ${booking ? 'has-booking' : timeBlock ? 'has-time-block' : 'empty'}`}
                     >
                       {booking && (
                         <div
@@ -189,6 +196,12 @@ export default function CalendarGrid({ barbers = [], bookings = [], selectedBook
                             <Clock size={11} />
                             <span>{timeSlot}</span>
                           </div>
+                        </div>
+                      )}
+                      {!booking && timeBlock && (
+                        <div className="master-time-block" title={`${timeBlock.reason || 'Недоступно'}: ${timeBlock.startsAt} — ${timeBlock.endsAt}`}>
+                          <Coffee size={12} />
+                          <span>{timeBlock.reason || 'Недоступно'}</span>
                         </div>
                       )}
                     </div>

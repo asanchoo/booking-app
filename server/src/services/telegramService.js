@@ -7,11 +7,13 @@ import { db } from '../db/connection.js';
 import { listClientBookings, cancelBooking, rescheduleBooking } from './bookingService.js';
 import { getAvailableSlots } from './slotService.js';
 import { normalizePhone } from '../utils/phone.js';
+import { createMasterReview, updateTelegramReviewComment } from './reviewService.js';
 
 let botInstance = null;
 
 // In-memory cache for proposed reschedule slots per booking
 const pendingReschedules = new Map();
+const pendingReviewComments = new Map();
 
 export function initBot() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -225,6 +227,35 @@ export function initBot() {
     await showMyBookings(ctx.chat.id);
   });
 
+  // The rating is saved immediately; the next regular text message can enrich it with a comment.
+  botInstance.on('message', async (ctx, next) => {
+    const chatId = ctx.chat?.id;
+    const text = String(ctx.message?.text || '').trim();
+    const pending = pendingReviewComments.get(chatId);
+    if (!pending || !text || text.startsWith('/')) return next();
+
+    if (pending.expiresAt <= Date.now()) {
+      pendingReviewComments.delete(chatId);
+      await sendTelegramMessage(chatId, 'Время для комментария истекло, но ваша оценка уже сохранена. Спасибо!');
+      return;
+    }
+
+    const link = db.prepare('SELECT phone FROM telegram_links WHERE chat_id = ?').get(chatId);
+    if (!link || normalizePhone(link.phone) !== pending.phone) {
+      pendingReviewComments.delete(chatId);
+      await sendTelegramMessage(chatId, 'Не удалось подтвердить аккаунт. Оценка сохранена без комментария.');
+      return;
+    }
+
+    try {
+      updateTelegramReviewComment({ bookingId: pending.bookingId, clientPhone: link.phone, comment: text });
+      pendingReviewComments.delete(chatId);
+      await sendTelegramMessage(chatId, 'Спасибо! Ваш отзыв опубликован на сайте 💛');
+    } catch (error) {
+      await sendTelegramMessage(chatId, `Не удалось сохранить комментарий: ${error.message || 'попробуйте позже'}`);
+    }
+  });
+
   // Handle callback queries for inline buttons
   botInstance.on('callback_query', async (ctx) => {
     const query = ctx.callbackQuery;
@@ -236,8 +267,66 @@ export function initBot() {
 
     const token = process.env.TELEGRAM_BOT_TOKEN;
 
+    // ─── REVIEW FLOW ────────────────────────────────────────────────────────
+    if (data.startsWith('review_rate_')) {
+      const match = /^review_rate_(\d+)_([1-5])$/.exec(data);
+      if (!match) return;
+      const bookingId = Number.parseInt(match[1], 10);
+      const rating = Number.parseInt(match[2], 10);
+      const link = db.prepare('SELECT phone FROM telegram_links WHERE chat_id = ?').get(chatId);
+
+      try {
+        if (!link) throw new Error('Telegram не привязан к аккаунту');
+        createMasterReview({ bookingId, clientPhone: link.phone, rating, source: 'telegram' });
+        pendingReviewComments.set(chatId, {
+          bookingId,
+          phone: normalizePhone(link.phone),
+          expiresAt: Date.now() + 30 * 60 * 1000,
+        });
+        await ctx.answerCallbackQuery({ text: 'Оценка сохранена' }).catch(() => {});
+        await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            message_id: messageId,
+            text: `${'⭐'.repeat(rating)}${'☆'.repeat(5 - rating)}\n\nОценка уже появилась на сайте. Хотите добавить комментарий? Просто отправьте его следующим сообщением.`,
+            reply_markup: {
+              inline_keyboard: [[{ text: 'Без комментария', callback_data: `review_skip_${bookingId}` }]],
+            },
+          }),
+        });
+      } catch (error) {
+        const alreadyReviewed = error?.status === 409;
+        await ctx.answerCallbackQuery({ text: alreadyReviewed ? 'Отзыв уже сохранён' : 'Не удалось сохранить оценку' }).catch(() => {});
+        await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            message_id: messageId,
+            text: alreadyReviewed ? 'Спасибо! Вы уже оставили отзыв об этом визите.' : `❌ ${error.message || 'Не удалось сохранить оценку'}`,
+          }),
+        }).catch(() => {});
+      }
+    } else if (data.startsWith('review_skip_')) {
+      const bookingId = Number.parseInt(data.replace('review_skip_', ''), 10);
+      const pending = pendingReviewComments.get(chatId);
+      if (pending?.bookingId === bookingId) pendingReviewComments.delete(chatId);
+      await ctx.answerCallbackQuery({ text: 'Спасибо за оценку!' }).catch(() => {});
+      await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId,
+          text: 'Спасибо за оценку! Она уже учтена в рейтинге мастера 💛',
+        }),
+      }).catch(() => {});
+    }
+
     // ─── ATTENDANCE CONFIRMATION ─────────────────────────────────────────────
-    if (data.startsWith('confirm_attend_')) {
+    else if (data.startsWith('confirm_attend_')) {
       const bookingId = parseInt(data.replace('confirm_attend_', ''), 10);
       const nowIso = new Date().toISOString();
       db.prepare(`UPDATE bookings SET client_confirmed_at = ? WHERE id = ?`).run(nowIso, bookingId);

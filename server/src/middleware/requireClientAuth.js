@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '../config/env.js';
 
 export function requireClientAuth(req, res, next) {
   const token = req.cookies?.client_token;
@@ -8,8 +9,7 @@ export function requireClientAuth(req, res, next) {
   }
 
   try {
-    const jwtSecret = process.env.JWT_SECRET || 'default_fallback_secret_key_32bytes';
-    const decoded = jwt.verify(token, jwtSecret);
+    const decoded = jwt.verify(token, getJwtSecret());
 
     if (decoded.role !== 'client' || !decoded.phone) {
       return res.status(401).json({ error: 'Unauthorized' });

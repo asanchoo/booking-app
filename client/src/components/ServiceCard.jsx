@@ -14,7 +14,7 @@ export default function ServiceCard({ service, isSelected, onSelect }) {
       </div>
       
       <p className="service-description">
-        {service.description || 'Профессиональный уход от опытных мастеров барбершопа.'}
+        {service.description || 'Профессиональная услуга от опытного мастера.'}
       </p>
 
       <div className="service-card-footer">

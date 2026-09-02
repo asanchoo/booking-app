@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { listClientBookings, cancelBooking } from '../services/bookingService.js';
 import { requireClientAuth } from '../middleware/requireClientAuth.js';
+import { assertBookingCanBeChanged } from '../utils/bookingPolicy.js';
+import { createMasterReview } from '../services/reviewService.js';
 
 const router = Router();
 
@@ -48,14 +50,24 @@ router.post('/:id/cancel', requireClientAuth, (req, res, next) => {
       return res.status(400).json({ error: 'Запись уже отменена' });
     }
 
-    if (booking.starts_at && new Date(booking.starts_at) < new Date()) {
-      return res.status(400).json({ error: 'Нельзя отменить прошедшую запись' });
-    }
+    assertBookingCanBeChanged(booking.starts_at);
 
     cancelBooking(bookingId);
     return res.json({ success: true });
   } catch (error) {
     next(error);
+  }
+});
+
+router.post('/:id/review', requireClientAuth, (req, res, next) => {
+  try {
+    const bookingId = Number.parseInt(req.params.id, 10);
+    const rating = Number(req.body?.rating);
+    const comment = String(req.body?.comment || '').trim().slice(0, 500);
+    const review = createMasterReview({ bookingId, clientPhone: req.clientPhone, rating, comment, source: 'website' });
+    return res.status(201).json({ success: true, review });
+  } catch (error) {
+    return next(error);
   }
 });
 

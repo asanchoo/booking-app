@@ -1,7 +1,15 @@
 node_modules/
-data/*.db
-data/*.db-*
-.env
-.DS_Store
 dist/
 build/
+coverage/
+*.log
+
+# Local secrets and environment-specific configuration
+.env
+.env.*
+!.env.example
+
+# Local data and operating-system clutter
+.DS_Store
+data/*.db
+data/*.db-*

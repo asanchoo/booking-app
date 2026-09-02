@@ -98,7 +98,7 @@ export default function AdminSettingsLight({ onAuthError }) {
         <div className="settings-card">
           <div className="settings-card-header">
             <h3>Рабочие часы</h3>
-            <p>Время начала и окончания работы барбершопа</p>
+            <p>Время начала и окончания работы салона</p>
           </div>
           <div className="settings-fields-grid">
             <div className="settings-field-group">
@@ -142,7 +142,7 @@ export default function AdminSettingsLight({ onAuthError }) {
         <div className="settings-card">
           <div className="settings-card-header">
             <h3>Рабочие дни</h3>
-            <p>Выберите дни, когда барбершоп принимает клиентов</p>
+            <p>Выберите дни, когда салон принимает клиентов</p>
           </div>
           <div className="work-days-toggles">
             {DAY_LABELS.map((d) => {

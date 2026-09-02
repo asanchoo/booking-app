@@ -4,7 +4,8 @@ import ServiceCard from '../components/ServiceCard.jsx';
 import BarberCard from '../components/BarberCard.jsx';
 import SlotPicker from '../components/SlotPicker.jsx';
 import BookingForm from '../components/BookingForm.jsx';
-import { generateTelegramLink, checkTelegramStatus, checkClientAuth } from '../api/clientAuthApi.js';
+import { generateTelegramLink, checkTelegramStatus, checkClientAuth, registerClient } from '../api/clientAuthApi.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import {
   CheckCircle, AlertCircle, RotateCcw,
   Scissors, X, Loader2, ArrowLeft, Send, ExternalLink,
@@ -107,7 +108,7 @@ export default function CustomerBookingPage() {
       setError('');
 
       try {
-        const barbersList = await fetchBarbers();
+        const barbersList = await fetchBarbers(selectedService.id);
         if (cancelled) return;
         setBarbers(barbersList);
 
@@ -243,7 +244,7 @@ export default function CustomerBookingPage() {
     const bk = success.booking || success;
     const phone = bk.clientPhone || bk.customer_phone || bk.phone;
 
-    return <SuccessScreen bk={bk} phone={phone} selectedService={selectedService} selectedBarber={selectedBarber} resetAll={resetAll} />;
+    return <SuccessScreen bk={bk} phone={phone} clientAuth={clientAuth} onClientAuthenticated={setClientAuth} selectedService={selectedService} selectedBarber={selectedBarber} resetAll={resetAll} />;
   }
 
 
@@ -414,29 +415,78 @@ export default function CustomerBookingPage() {
   );
 }
 
-function SuccessScreen({ bk, phone, selectedService, selectedBarber, resetAll }) {
+function SuccessScreen({ bk, phone, clientAuth, onClientAuthenticated, selectedService, selectedBarber, resetAll }) {
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [telegramHint, setTelegramHint] = useState(false);
   const [isTelegramLinked, setIsTelegramLinked] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [accountError, setAccountError] = useState('');
+  const [accountExists, setAccountExists] = useState(false);
+  const { login } = useAuth();
 
   useEffect(() => {
-    if (!phone) return;
-    checkTelegramStatus(phone)
-      .then((res) => setIsTelegramLinked(Boolean(res?.linked)))
-      .catch(() => setIsTelegramLinked(false));
-  }, [phone]);
+    if (!clientAuth?.authenticated) return;
+    let cancelled = false;
+    const refreshTelegramStatus = () => checkTelegramStatus()
+      .then((res) => {
+        if (!cancelled) {
+          setIsTelegramLinked(Boolean(res?.linked));
+          if (res?.linked) setTelegramHint(false);
+        }
+      })
+      .catch(() => {});
+
+    refreshTelegramStatus();
+    const handleFocus = () => refreshTelegramStatus();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshTelegramStatus();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    const pollId = telegramHint ? window.setInterval(refreshTelegramStatus, 2000) : null;
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (pollId) window.clearInterval(pollId);
+    };
+  }, [clientAuth, telegramHint]);
 
   const handleLinkTelegram = async () => {
-    if (!phone) return;
+    if (!clientAuth?.authenticated) return;
     setTelegramLoading(true);
     try {
-      const { link } = await generateTelegramLink(phone);
+      const { link } = await generateTelegramLink();
       window.open(link, '_blank');
       setTelegramHint(true);
     } catch (err) {
       console.error(err);
     } finally {
       setTelegramLoading(false);
+    }
+  };
+
+  const handleCreateAccount = async (event) => {
+    event.preventDefault();
+    setAccountError('');
+    setAccountExists(false);
+    if (password.length < 6) return setAccountError('Пароль должен содержать минимум 6 символов.');
+    if (password !== confirmPassword) return setAccountError('Пароли не совпадают.');
+    setAccountLoading(true);
+    try {
+      await registerClient({ phone, name: bk.clientName || bk.customer_name || '', password });
+      const session = await login(phone, password);
+      onClientAuthenticated({ authenticated: true, phone: session.phone, name: session.name || bk.clientName || '' });
+      setPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setAccountExists(err.status === 409);
+      setAccountError(err.message || 'Не удалось создать аккаунт.');
+    } finally {
+      setAccountLoading(false);
     }
   };
 
@@ -465,50 +515,41 @@ function SuccessScreen({ bk, phone, selectedService, selectedBarber, resetAll })
             ))}
           </div>
 
-          {/* Telegram linking banner for guest / quick booking (shown only if not linked) */}
-          {!isTelegramLinked && (
-            <div style={{
-              background: '#F0F9FF',
-              border: '1px solid #BAE6FD',
-              borderRadius: '16px',
-              padding: '16px 20px',
-              marginTop: '20px',
-              textAlign: 'left',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <div style={{
-                  width: '36px', height: '36px', borderRadius: '10px',
-                  background: '#0284C7', color: '#FFF',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, marginTop: '2px',
-                }}>
+          {!clientAuth?.authenticated && (
+            <form className="cp-account-card" onSubmit={handleCreateAccount}>
+              <div className="cp-account-copy">
+                <h3>Сохраните запись в личном кабинете</h3>
+                <p>Создайте пароль — сможете переносить записи, оставлять отзывы и получать напоминания.</p>
+              </div>
+              <div className="cp-account-fields">
+                <input type="password" minLength="6" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Придумайте пароль" aria-label="Пароль" />
+                <input type="password" minLength="6" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Повторите пароль" aria-label="Подтверждение пароля" />
+              </div>
+              {accountError && <p className="cp-account-error">{accountError}</p>}
+              {accountExists && <a className="cp-account-login" href="/login">Войти в существующий аккаунт</a>}
+              <button type="submit" className="cp-account-button" disabled={accountLoading}>
+                {accountLoading ? <Loader2 size={16} className="spin" /> : 'Создать аккаунт'}
+              </button>
+            </form>
+          )}
+
+          {/* Telegram linking banner is available immediately after account creation. */}
+          {clientAuth?.authenticated && !isTelegramLinked && (
+            <div className="cp-telegram-card">
+              <div className="cp-telegram-content">
+                <div className="cp-telegram-icon">
                   <Send size={18} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: '700', color: '#0C4A6E' }}>
-                    📱 Привяжите Telegram, чтобы получать уведомления и управлять записью
-                  </h4>
-                  <p style={{ margin: '0 0 12px', fontSize: '0.82rem', color: '#0369A1', lineHeight: 1.4 }}>
-                    Вы сможете просматривать и отменять записи прямо в мессенджере в один клик.
-                  </p>
+                <div>
+                  <h3>Получайте напоминания в Telegram</h3>
+                  <p>Уведомим о записи, позволим подтвердить визит, перенести или отменить её в мессенджере.</p>
 
                   <div>
                     <button
+                      type="button"
                       onClick={handleLinkTelegram}
                       disabled={telegramLoading}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '9px 16px',
-                        borderRadius: '10px',
-                        background: '#0284C7',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                      }}
+                      className="cp-telegram-button"
                     >
                       {telegramLoading ? <Loader2 size={16} className="spin" /> : (
                         <>
@@ -519,12 +560,22 @@ function SuccessScreen({ bk, phone, selectedService, selectedBarber, resetAll })
                       )}
                     </button>
                     {telegramHint && (
-                      <span style={{ display: 'block', marginTop: '6px', fontSize: '0.78rem', color: '#0284C7', fontWeight: '600' }}>
+                      <span className="cp-telegram-hint">
                         Нажмите Start в открывшемся чате Telegram
                       </span>
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {clientAuth?.authenticated && isTelegramLinked && (
+            <div className="cp-telegram-linked" role="status">
+              <CheckCircle size={20} />
+              <div>
+                <strong>Telegram привязан</strong>
+                <span>Напоминания и управление записью доступны в боте.</span>
               </div>
             </div>
           )}
@@ -538,4 +589,3 @@ function SuccessScreen({ bk, phone, selectedService, selectedBarber, resetAll })
     </div>
   );
 }
-

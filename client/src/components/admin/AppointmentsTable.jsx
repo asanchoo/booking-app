@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Phone, Scissors, Clock, CheckCircle2, User, Eye } from 'lucide-react';
+import { Search, Phone, Scissors, Clock, CheckCircle2, User, Eye, Plus } from 'lucide-react';
 
 export default function AppointmentsTable({
   bookings = [],
@@ -8,6 +8,7 @@ export default function AppointmentsTable({
   onSearchChange,
   onSelectBooking,
   selectedBookingId,
+  onCreateBooking,
 }) {
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -86,6 +87,7 @@ export default function AppointmentsTable({
             </button>
           ))}
         </div>
+        <button className="admin-new-booking-button" onClick={onCreateBooking}><Plus size={15} /> Новая запись</button>
       </div>
 
       {isLoading ? (

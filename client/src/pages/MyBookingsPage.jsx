@@ -7,6 +7,7 @@ import {
   generateTelegramLink,
   cancelMyBooking,
   rescheduleBooking,
+  createBarberReview,
 } from '../api/clientAuthApi.js';
 import { fetchSlots } from '../api/bookingApi.js';
 import SlotPicker from '../components/SlotPicker.jsx';
@@ -27,8 +28,12 @@ import {
   XCircle,
   X,
   CalendarClock,
+  Star,
+  Timer,
+  ArrowRight,
 } from 'lucide-react';
 import './AdminPage.css';
+import './MyBookingsPage.css';
 
 // ─── Reschedule Modal ────────────────────────────────────────────────────────
 function RescheduleModal({ booking, clientPhone, onConfirm, onClose, isLoading }) {
@@ -422,6 +427,8 @@ function Toast({ message, type = 'success', onClose }) {
 export default function MyBookingsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [clientPhone, setClientPhone] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [nowMs, setNowMs] = useState(Date.now());
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -441,6 +448,10 @@ export default function MyBookingsPage() {
 
   // Toast
   const [toast, setToast] = useState(null);
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -449,10 +460,9 @@ export default function MyBookingsPage() {
     setToast({ message, type });
   };
 
-  const loadTelegramStatus = useCallback(async (phone) => {
-    if (!phone) return;
+  const loadTelegramStatus = useCallback(async () => {
     try {
-      const res = await checkTelegramStatus(phone);
+      const res = await checkTelegramStatus();
       setIsTelegramLinked(Boolean(res?.linked));
     } catch {
       setIsTelegramLinked(false);
@@ -469,11 +479,12 @@ export default function MyBookingsPage() {
         }
         const phone = auth.phone || '';
         setClientPhone(phone);
+        setClientName(auth.name || '');
         setAuthChecked(true);
 
         const [bookingsData] = await Promise.all([
           fetchMyBookings(),
-          loadTelegramStatus(phone),
+          loadTelegramStatus(),
         ]);
         setBookings(bookingsData || []);
       } catch (err) {
@@ -488,9 +499,14 @@ export default function MyBookingsPage() {
     })();
   }, [navigate, loadTelegramStatus]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   // Refetch Telegram status when window regains focus
   useEffect(() => {
-    const handleFocus = () => loadTelegramStatus(clientPhone);
+    const handleFocus = () => loadTelegramStatus();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [loadTelegramStatus, clientPhone]);
@@ -500,7 +516,7 @@ export default function MyBookingsPage() {
     setTelegramLoading(true);
     setError('');
     try {
-      const { link } = await generateTelegramLink(clientPhone);
+      const { link } = await generateTelegramLink();
       window.open(link, '_blank');
       setTelegramHint(true);
     } catch (err) {
@@ -546,7 +562,7 @@ export default function MyBookingsPage() {
 
     setRescheduleLoading(true);
     try {
-      const updated = await rescheduleBooking(rescheduleTarget.id, newStartsAt, clientPhone);
+      const updated = await rescheduleBooking(rescheduleTarget.id, newStartsAt);
       setBookings((prev) =>
         prev.map((b) => (b.id === rescheduleTarget.id ? { ...b, ...updated } : b))
       );
@@ -560,6 +576,28 @@ export default function MyBookingsPage() {
       }
     } finally {
       setRescheduleLoading(false);
+    }
+  };
+
+  const openReview = (booking) => {
+    setReviewTarget(booking);
+    setReviewRating(5);
+    setReviewComment('');
+  };
+
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+    if (!reviewTarget) return;
+    setReviewLoading(true);
+    try {
+      await createBarberReview(reviewTarget.id, { rating: reviewRating, comment: reviewComment.trim() });
+      setBookings((current) => current.map((item) => item.id === reviewTarget.id ? { ...item, hasReview: true } : item));
+      setReviewTarget(null);
+      showToast('Спасибо за ваш отзыв!');
+    } catch (err) {
+      showToast(err.message || 'Не удалось сохранить отзыв', 'error');
+    } finally {
+      setReviewLoading(false);
     }
   };
 
@@ -612,8 +650,23 @@ export default function MyBookingsPage() {
     );
   }
 
-  const upcomingBookings = bookings.filter(isUpcoming);
+  const upcomingBookings = bookings
+    .filter(isUpcoming)
+    .sort((a, b) => new Date(a.startsAt || a.start_time) - new Date(b.startsAt || b.start_time));
   const pastBookings = bookings.filter((b) => !isUpcoming(b));
+  const nextBooking = upcomingBookings[0] || null;
+  const getCountdown = (booking) => {
+    if (!booking) return '';
+    const distance = new Date(booking.startsAt || booking.start_time).getTime() - nowMs;
+    if (distance <= 0) return 'Визит уже начинается';
+    const totalMinutes = Math.ceil(distance / 60000);
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+    if (days > 0) return `Через ${days} дн. ${hours} ч.`;
+    if (hours > 0) return `Через ${hours} ч. ${minutes} мин.`;
+    return `Через ${minutes} мин.`;
+  };
 
   return (
     <>
@@ -645,6 +698,28 @@ export default function MyBookingsPage() {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {reviewTarget && (
+        <div className="client-review-backdrop" onClick={() => !reviewLoading && setReviewTarget(null)}>
+          <form className="client-review-modal" onSubmit={handleReviewSubmit} onClick={(event) => event.stopPropagation()}>
+            <div className="client-review-header">
+              <div><span><Star size={19} /></span><div><h2>Как прошёл визит?</h2><p>{reviewTarget.serviceName} · мастер {reviewTarget.barberName || 'не указан'}</p></div></div>
+              <button type="button" onClick={() => setReviewTarget(null)}><X size={18} /></button>
+            </div>
+            <div className="client-review-body">
+              <p>Ваша оценка</p>
+              <div className="client-review-stars" role="radiogroup" aria-label="Оценка мастера">
+                {[1, 2, 3, 4, 5].map((rating) => <button key={rating} type="button" role="radio" aria-checked={reviewRating === rating} aria-label={`${rating} из 5`} className={rating <= reviewRating ? 'active' : ''} onClick={() => setReviewRating(rating)}><Star size={30} fill="currentColor" /></button>)}
+              </div>
+              <strong>{reviewRating === 5 ? 'Отлично!' : reviewRating === 4 ? 'Очень хорошо' : reviewRating === 3 ? 'Хорошо' : reviewRating === 2 ? 'Можно лучше' : 'Плохо'}</strong>
+              <label htmlFor="review-comment">Комментарий <span>необязательно</span></label>
+              <textarea id="review-comment" rows="4" maxLength="500" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} placeholder="Расскажите, что вам понравилось или что можно улучшить" />
+              <small>{reviewComment.length}/500</small>
+            </div>
+            <div className="client-review-actions"><button type="button" onClick={() => setReviewTarget(null)}>Позже</button><button type="submit" disabled={reviewLoading}>{reviewLoading ? <Loader2 size={16} className="spin" /> : <Star size={16} />} Отправить отзыв</button></div>
+          </form>
+        </div>
       )}
 
       <div style={{ minHeight: 'calc(100vh - 73px)', background: '#F8F7F3', padding: '32px 20px 80px', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
@@ -680,7 +755,7 @@ export default function MyBookingsPage() {
               </div>
               <div>
                 <h1 style={{ fontSize: '1.35rem', fontWeight: '800', color: '#18181B', margin: '0 0 4px 0' }}>
-                  Личный кабинет
+                  {clientName ? `Здравствуйте, ${clientName}` : 'Личный кабинет'}
                 </h1>
                 <p style={{ margin: 0, fontSize: '0.9rem', color: '#71717A', fontWeight: '500' }}>
                   Номер: <strong>{formatPhoneDisplay(clientPhone)}</strong>
@@ -839,6 +914,30 @@ export default function MyBookingsPage() {
             </div>
           )}
 
+          {nextBooking && (
+            <section className="client-next-visit">
+              <div className="client-next-topline">
+                <span><Sparkles size={15} /> Следующий визит</span>
+                <strong><Timer size={16} /> {getCountdown(nextBooking)}</strong>
+              </div>
+              <div className="client-next-body">
+                <div>
+                  <p className="client-next-date">{formatDate(nextBooking.startsAt || nextBooking.start_time)} · {formatTime(nextBooking.startsAt || nextBooking.start_time)}</p>
+                  <h2>{nextBooking.serviceName || `Услуга #${nextBooking.serviceId}`}</h2>
+                  <p className="client-next-master"><User size={16} /> Мастер: <strong>{nextBooking.barberName || 'Не указан'}</strong></p>
+                  <div className="client-next-badges">
+                    <span className="ready"><CheckCircle2 size={13} /> Запись подтверждена</span>
+                    <span className={isTelegramLinked ? 'ready' : 'attention'}><Send size={13} /> Telegram {isTelegramLinked ? 'подключён' : 'не подключён'}</span>
+                  </div>
+                </div>
+                <div className="client-next-actions">
+                  <button onClick={() => setRescheduleTarget(nextBooking)}><CalendarClock size={16} /> Перенести</button>
+                  <button className="danger" onClick={() => setCancelTarget(nextBooking)}><XCircle size={16} /> Отменить</button>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Upcoming Bookings */}
           <div style={{ marginBottom: '36px' }}>
             <h2 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#18181B', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -895,7 +994,7 @@ export default function MyBookingsPage() {
                       }}
                     >
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -910,6 +1009,22 @@ export default function MyBookingsPage() {
                           }}>
                             <CheckCircle2 size={12} /> Предстоящая
                           </span>
+                          {b.clientConfirmedAt && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: '#F0F9FF',
+                              color: '#0369A1',
+                              border: '1px solid #BAE6FD',
+                              padding: '3px 9px',
+                              borderRadius: '12px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                            }}>
+                              ✅ Подтверждено
+                            </span>
+                          )}
                           {price && (
                             <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#C5A55A' }}>
                               {price} ₸
@@ -1021,9 +1136,14 @@ export default function MyBookingsPage() {
                         </h4>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', color: '#71717A', fontSize: '0.82rem' }}>
                           <span>{formatDate(startsAt)} в {formatTime(startsAt)}</span>
-                          <span>Барбер: {b.barberName || 'Не указан'}</span>
+                          <span>Мастер: {b.barberName || 'Не указан'}</span>
                         </div>
                       </div>
+                      {b.attendanceStatus === 'attended' && !b.hasReview && (
+                        <button onClick={() => openReview(b)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '10px', background: '#FFFBEB', border: '1px solid #FDE68A', color: '#A16207', fontWeight: '700', cursor: 'pointer' }}>
+                          <Star size={15} /> Оценить мастера
+                        </button>
+                      )}
 
                       <span style={{
                         display: 'inline-flex',

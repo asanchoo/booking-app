@@ -104,13 +104,13 @@ export default function AdminBarbers({ onAuthError }) {
   };
 
   const handleDelete = async (b) => {
-    if (!window.confirm(`Вы уверены, что хотите удалить барбера «${b.name}»?`)) return;
+    if (!window.confirm(`Вы уверены, что хотите удалить мастера «${b.name}»?`)) return;
     try {
       const result = await deleteBarber(b.id);
       if (result.deleted) {
-        showToast(`Барбер «${b.name}» удалён полностью`);
+        showToast(`Мастер «${b.name}» удалён полностью`);
       } else if (result.archived) {
-        showToast(`Удаление невозможно: есть связанные записи. Барбер «${b.name}» архивирован.`);
+        showToast(`Удаление невозможно: есть связанные записи. Мастер «${b.name}» архивирован.`);
       }
       await load();
     } catch (err) {
@@ -174,10 +174,10 @@ export default function AdminBarbers({ onAuthError }) {
   return (
     <div className="admin-section">
       <div className="section-header">
-        <h2 className="section-title">Управление барберами</h2>
+        <h2 className="section-title">Управление мастерами</h2>
         <button className="btn-primary" onClick={openCreate}>
           <Plus size={16} />
-          <span>Добавить барбера</span>
+          <span>Добавить мастера</span>
         </button>
       </div>
 
@@ -234,7 +234,7 @@ export default function AdminBarbers({ onAuthError }) {
 
           {inactive.length > 0 && (
             <>
-              <h3 className="subsection-title">Архивированные барберы</h3>
+              <h3 className="subsection-title">Архивированные мастера</h3>
               <div className="table-responsive">
                 <table className="admin-table table-muted">
                   <thead>
@@ -279,7 +279,7 @@ export default function AdminBarbers({ onAuthError }) {
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{editingBarber ? 'Редактировать барбера' : 'Новый барбер'}</h3>
+              <h3>{editingBarber ? 'Редактировать мастера' : 'Новый мастер'}</h3>
               <button className="btn-icon" onClick={() => setModalOpen(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="modal-form">

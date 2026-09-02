@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '../config/env.js';
 
 export function requireAuth(req, res, next) {
   const token = req.cookies?.admin_token;
@@ -8,8 +9,7 @@ export function requireAuth(req, res, next) {
   }
 
   try {
-    const jwtSecret = process.env.JWT_SECRET || 'default_fallback_secret_key_32bytes';
-    const decoded = jwt.verify(token, jwtSecret);
+    const decoded = jwt.verify(token, getJwtSecret());
 
     if (decoded.role !== 'admin') {
       return res.status(401).json({ error: 'Unauthorized' });

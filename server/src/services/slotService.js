@@ -38,6 +38,12 @@ function getActiveBarber(barberId) {
     .get(barberId);
 }
 
+function isMasterAssignedToService(serviceId, barberId) {
+  return db
+    .prepare('SELECT 1 FROM service_masters WHERE service_id = ? AND master_id = ?')
+    .get(serviceId, barberId);
+}
+
 function getConfirmedBookings(barberId, fromDateTime, toDateTime) {
   return db
     .prepare(
@@ -51,6 +57,14 @@ function getConfirmedBookings(barberId, fromDateTime, toDateTime) {
     `,
     )
     .all(barberId, toDateTime, fromDateTime);
+}
+
+function getMasterTimeBlocks(barberId, fromDateTime, toDateTime) {
+  return db.prepare(`
+    SELECT starts_at AS startsAt, ends_at AS endsAt
+    FROM master_time_blocks
+    WHERE master_id = ? AND starts_at < ? AND ends_at > ?
+  `).all(barberId, toDateTime, fromDateTime);
 }
 
 function generateDaySlots(date, settings, durationMinutes) {
@@ -103,6 +117,10 @@ export function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
     throw new HttpError(404, 'Barber not found');
   }
 
+  if (!isMasterAssignedToService(service.id, barber.id)) {
+    throw new HttpError(400, 'Master is not available for selected service');
+  }
+
   const defaults = defaultSlotRange();
   const fromDate = fromParam ? parseDateParam(fromParam) : parseDateParam(defaults.from);
   const toDate = toParam ? parseDateParam(toParam) : parseDateParam(defaults.to);
@@ -124,6 +142,7 @@ export function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
   const rangeEndDateTime = buildDateTime(toDate, settings.work_end);
   const rangeStartDateTime = buildDateTime(rangeStart, settings.work_start);
   const existingBookings = getConfirmedBookings(barber.id, rangeStartDateTime, rangeEndDateTime);
+  const timeBlocks = getMasterTimeBlocks(barber.id, rangeStartDateTime, rangeEndDateTime);
 
   const slots = [];
 
@@ -139,7 +158,11 @@ export function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
         overlaps(slot.startsAt, slot.endsAt, booking.startsAt, booking.endsAt),
       );
 
-      if (!hasConflict) {
+      const isBlocked = timeBlocks.some((block) =>
+        overlaps(slot.startsAt, slot.endsAt, block.startsAt, block.endsAt),
+      );
+
+      if (!hasConflict && !isBlocked) {
         slots.push(slot);
       }
     }

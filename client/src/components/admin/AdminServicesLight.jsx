@@ -4,11 +4,13 @@ import {
   createService,
   updateService,
   deleteService,
+  getAdminBarbers,
 } from '../../api/adminApi.js';
 import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle, Clock, DollarSign } from 'lucide-react';
 
 export default function AdminServicesLight({ onAuthError }) {
   const [services, setServices] = useState([]);
+  const [masters, setMasters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState({ msg: '', type: 'success' });
@@ -17,6 +19,8 @@ export default function AdminServicesLight({ onAuthError }) {
   const [formName, setFormName] = useState('');
   const [formDuration, setFormDuration] = useState('');
   const [formPrice, setFormPrice] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formMasterIds, setFormMasterIds] = useState([]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -27,8 +31,9 @@ export default function AdminServicesLight({ onAuthError }) {
     setLoading(true);
     setError('');
     try {
-      const data = await getAdminServices();
-      setServices(data);
+      const [servicesData, mastersData] = await Promise.all([getAdminServices(), getAdminBarbers()]);
+      setServices(servicesData);
+      setMasters(mastersData.filter((master) => master.isActive === 1));
     } catch (err) {
       if (err.status === 401) return onAuthError();
       setError(err.message);
@@ -44,6 +49,8 @@ export default function AdminServicesLight({ onAuthError }) {
     setFormName('');
     setFormDuration('');
     setFormPrice('');
+    setFormDescription('');
+    setFormMasterIds([]);
     setModalOpen(true);
   };
 
@@ -52,6 +59,8 @@ export default function AdminServicesLight({ onAuthError }) {
     setFormName(svc.name);
     setFormDuration(String(svc.durationMinutes));
     setFormPrice(String(svc.priceCents / 100));
+    setFormDescription(svc.description || '');
+    setFormMasterIds(svc.masterIds || []);
     setModalOpen(true);
   };
 
@@ -62,10 +71,10 @@ export default function AdminServicesLight({ onAuthError }) {
     const durationMinutes = Number(formDuration);
     try {
       if (editingService) {
-        await updateService(editingService.id, { name: formName, durationMinutes, priceCents });
+        await updateService(editingService.id, { name: formName, description: formDescription, durationMinutes, priceCents, masterIds: formMasterIds });
         showToast(`Услуга «${formName}» обновлена`);
       } else {
-        await createService({ name: formName, durationMinutes, priceCents });
+        await createService({ name: formName, description: formDescription, durationMinutes, priceCents, masterIds: formMasterIds });
         showToast(`Услуга «${formName}» создана`);
       }
       setModalOpen(false);
@@ -144,6 +153,7 @@ export default function AdminServicesLight({ onAuthError }) {
                   </div>
                 </div>
                 <h3 className="svc-card-name">{svc.name}</h3>
+                {svc.description && <p className="svc-card-description">{svc.description}</p>}
                 <div className="svc-card-meta">
                   <span className="svc-meta-item">
                     <Clock size={13} /> {svc.durationMinutes} мин
@@ -152,6 +162,7 @@ export default function AdminServicesLight({ onAuthError }) {
                     <DollarSign size={13} /> {(svc.priceCents / 100).toLocaleString('ru-RU')} ₸
                   </span>
                 </div>
+                <p className="svc-card-description">Мастера: {svc.masters?.map((master) => master.name).join(', ') || 'не назначены'}</p>
                 <span className="svc-status-badge active">Активна</span>
               </div>
             ))}
@@ -200,12 +211,31 @@ export default function AdminServicesLight({ onAuthError }) {
                 <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Например: Стрижка" />
               </div>
               <div className="saas-form-field">
+                <label>Описание услуги</label>
+                <textarea maxLength="500" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Кратко расскажите, что входит в услугу" rows="3" />
+              </div>
+              <div className="saas-form-field">
                 <label>Длительность (мин)</label>
                 <input type="number" required min="1" value={formDuration} onChange={(e) => setFormDuration(e.target.value)} placeholder="30" />
               </div>
               <div className="saas-form-field">
                 <label>Цена (₸)</label>
                 <input type="number" required min="0" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} placeholder="1500" />
+              </div>
+              <div className="saas-form-field">
+                <label>Мастера, выполняющие услугу</label>
+                {masters.length === 0 ? (
+                  <p className="svc-card-description">Сначала добавьте хотя бы одного активного мастера.</p>
+                ) : masters.map((master) => (
+                  <label key={master.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      checked={formMasterIds.includes(master.id)}
+                      onChange={(e) => setFormMasterIds((ids) => e.target.checked ? [...ids, master.id] : ids.filter((id) => id !== master.id))}
+                    />
+                    {master.name}
+                  </label>
+                ))}
               </div>
               {error && <div className="saas-alert error">{error}</div>}
               <button type="submit" className="saas-btn-primary w-full">

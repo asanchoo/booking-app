@@ -67,6 +67,8 @@ export default function LoginPage() {
       const res = await login(loginField.trim(), password);
       if (res?.role === 'admin') {
         navigate('/admin');
+      } else if (res?.role === 'barber') {
+        navigate('/barber');
       } else {
         navigate('/my-account');
       }

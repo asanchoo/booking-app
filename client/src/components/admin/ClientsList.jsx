@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Calendar, Clock, Scissors, User } from 'lucide-react';
+import { Phone, Star } from 'lucide-react';
 
 export default function ClientsList({ bookings = [], onSelectClientBooking }) {
   // Aggregate clients by phone or name
@@ -13,6 +13,7 @@ export default function ClientsList({ bookings = [], onSelectClientBooking }) {
       clientsMap[key] = {
         name,
         phone,
+        rating: Number(b.clientRating || 5),
         bookings: [],
       };
     }
@@ -60,6 +61,10 @@ export default function ClientsList({ bookings = [], onSelectClientBooking }) {
                 <div className="client-card-stats">
                   <div className="stat-pill">
                     <span>Записей: {client.bookings.length}</span>
+                  </div>
+                  <div className="stat-pill" title="Рейтинг надёжности клиента">
+                    <Star size={13} fill="currentColor" />
+                    <span>{client.rating.toFixed(2)}</span>
                   </div>
                 </div>
 

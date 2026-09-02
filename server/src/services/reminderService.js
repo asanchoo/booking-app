@@ -92,6 +92,45 @@ export async function checkAndSendReminders() {
         db.prepare(`UPDATE bookings SET reminder_1h_sent = 1 WHERE id = ?`).run(bk.id);
       }
     }
+
+    // Ask for feedback only after a master has confirmed the visit and the service has ended.
+    // The seven-day boundary avoids messaging clients about old records after a deployment.
+    const reviewCandidates = db.prepare(`
+      SELECT b.id, b.client_phone, b.ends_at,
+        s.name AS service_name, barb.name AS barber_name
+      FROM bookings b
+      JOIN services s ON s.id = b.service_id
+      JOIN barbers barb ON barb.id = b.barber_id
+      WHERE b.status = 'confirmed'
+        AND b.attendance_status = 'attended'
+        AND b.review_request_sent_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM barber_reviews r WHERE r.booking_id = b.id)
+    `).all();
+
+    const oldestEligibleMs = nowMs - 7 * 24 * 60 * 60 * 1000;
+    for (const booking of reviewCandidates) {
+      const endsAtMs = new Date(booking.ends_at).getTime();
+      if (!Number.isFinite(endsAtMs) || endsAtMs > nowMs || endsAtMs < oldestEligibleMs) continue;
+
+      const link = db.prepare('SELECT chat_id FROM telegram_links WHERE phone = ?').get(booking.client_phone);
+      if (!link?.chat_id) continue;
+
+      const text = `✨ Спасибо за визит!\n\nКак вам услуга «${booking.service_name}» у мастера ${booking.barber_name}? Оцените одним нажатием — это займёт несколько секунд.`;
+      try {
+        await sendTelegramMessage(link.chat_id, text, {
+          reply_markup: {
+            inline_keyboard: [[1, 2, 3, 4, 5].map((rating) => ({
+              text: `${rating} ⭐`,
+              callback_data: `review_rate_${booking.id}_${rating}`,
+            }))],
+          },
+        });
+        db.prepare(`UPDATE bookings SET review_request_sent_at = ? WHERE id = ?`)
+          .run(new Date().toISOString(), booking.id);
+      } catch (error) {
+        console.error(`[Reminder] Failed to send review request for booking #${booking.id}:`, error?.message);
+      }
+    }
   } catch (err) {
     console.error('[Reminder] Error checking reminders:', err);
   }

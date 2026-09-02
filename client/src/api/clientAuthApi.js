@@ -58,21 +58,18 @@ export function resetForgotPassword({ phone, code, newPassword }) {
 
 /**
  * Generate Telegram linking code/url
- * @param {string} phone
  */
-export function generateTelegramLink(phone) {
+export function generateTelegramLink() {
   return request(`${BASE_AUTH}/telegram/generate-link`, {
     method: 'POST',
-    body: JSON.stringify({ phone }),
   });
 }
 
 /**
- * Check Telegram linking status
- * @param {string} phone
+ * Check the current client's Telegram linking status
  */
-export function checkTelegramStatus(phone) {
-  return request(`${BASE_AUTH}/telegram/status?phone=${encodeURIComponent(phone || '')}`);
+export function checkTelegramStatus() {
+  return request(`${BASE_AUTH}/telegram/status`);
 }
 
 /**
@@ -101,6 +98,13 @@ export function cancelMyBooking(bookingId) {
   });
 }
 
+export function createBarberReview(bookingId, { rating, comment = '' }) {
+  return request(`/api/my-bookings/${bookingId}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ rating, comment }),
+  });
+}
+
 /**
  * Fetch client's booking history
  */
@@ -112,13 +116,10 @@ export function fetchMyBookings() {
  * Reschedule a booking
  * @param {number} bookingId
  * @param {string} newStartsAt
- * @param {string} [clientPhone]
  */
-export function rescheduleBooking(bookingId, newStartsAt, clientPhone) {
+export function rescheduleBooking(bookingId, newStartsAt) {
   return request(`/api/bookings/${bookingId}/reschedule`, {
     method: 'POST',
-    body: JSON.stringify({ newStartsAt, clientPhone }),
+    body: JSON.stringify({ newStartsAt }),
   });
 }
-
-

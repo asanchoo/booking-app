@@ -5,8 +5,10 @@ import {
   updateBarber,
   deleteBarber,
   uploadBarberPhoto,
+  createBarberAccount,
+  deleteBarberAccount,
 } from '../../api/adminApi.js';
-import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle, User, Upload } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle, User, Upload, KeyRound } from 'lucide-react';
 
 export default function AdminBarbersLight({ onAuthError }) {
   const [barbers, setBarbers] = useState([]);
@@ -19,6 +21,8 @@ export default function AdminBarbersLight({ onAuthError }) {
   const [formSortOrder, setFormSortOrder] = useState('0');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [formAccountUsername, setFormAccountUsername] = useState('');
+  const [formAccountPassword, setFormAccountPassword] = useState('');
   const fileInputRef = useRef(null);
 
   const showToast = (msg, type = 'success') => {
@@ -52,6 +56,8 @@ export default function AdminBarbersLight({ onAuthError }) {
     setEditingBarber(null);
     setFormName('');
     setFormSortOrder('0');
+    setFormAccountUsername('');
+    setFormAccountPassword('');
     resetPhotoState();
     setModalOpen(true);
   };
@@ -60,6 +66,8 @@ export default function AdminBarbersLight({ onAuthError }) {
     setEditingBarber(b);
     setFormName(b.name);
     setFormSortOrder(String(b.sortOrder));
+    setFormAccountUsername(b.accountUsername || '');
+    setFormAccountPassword('');
     resetPhotoState();
     setPhotoPreview(b.photoUrl || null);
     setModalOpen(true);
@@ -79,19 +87,29 @@ export default function AdminBarbersLight({ onAuthError }) {
     e.preventDefault();
     setError('');
     const sortOrder = Number(formSortOrder);
+    const existingUsername = editingBarber?.accountUsername || '';
+    const accountChanged = formAccountUsername !== existingUsername || Boolean(formAccountPassword);
+    if (accountChanged && (!formAccountUsername || !formAccountPassword)) {
+      setError('Для создания или изменения доступа мастера укажите и логин, и пароль');
+      return;
+    }
     try {
       let barberId;
       if (editingBarber) {
         await updateBarber(editingBarber.id, { name: formName, sortOrder });
         barberId = editingBarber.id;
-        showToast(`Барбер «${formName}» обновлён`);
+        showToast(`Мастер «${formName}» обновлён`);
       } else {
         const created = await createBarber({ name: formName, photoUrl: '', sortOrder });
         barberId = created.id;
-        showToast(`Барбер «${formName}» добавлен`);
+        showToast(`Мастер «${formName}» добавлен`);
       }
       if (photoFile && barberId) {
         await uploadBarberPhoto(barberId, photoFile);
+      }
+      if (accountChanged) {
+        await createBarberAccount(barberId, { username: formAccountUsername, password: formAccountPassword });
+        showToast(`Доступ мастера «${formAccountUsername}» сохранён`);
       }
       setModalOpen(false);
       await load();
@@ -101,14 +119,26 @@ export default function AdminBarbersLight({ onAuthError }) {
     }
   };
 
+  const handleDeleteAccount = async (b) => {
+    if (!window.confirm(`Удалить доступ мастера «${b.name}»? Он больше не сможет войти в кабинет.`)) return;
+    try {
+      await deleteBarberAccount(b.id);
+      showToast(`Доступ мастера «${b.name}» удалён`, 'warning');
+      await load();
+    } catch (err) {
+      if (err.status === 401) return onAuthError();
+      setError(err.message);
+    }
+  };
+
   const handleDelete = async (b) => {
-    if (!window.confirm(`Удалить барбера «${b.name}»?`)) return;
+    if (!window.confirm(`Удалить мастера «${b.name}»?`)) return;
     try {
       const result = await deleteBarber(b.id);
       if (result.deleted) {
-        showToast(`Барбер «${b.name}» удалён`);
+        showToast(`Мастер «${b.name}» удалён`);
       } else if (result.archived) {
-        showToast(`Барбер «${b.name}» архивирован (есть связанные записи)`, 'warning');
+        showToast(`Мастер «${b.name}» архивирован (есть связанные записи)`, 'warning');
       }
       await load();
     } catch (err) {
@@ -120,7 +150,7 @@ export default function AdminBarbersLight({ onAuthError }) {
   const handleRestore = async (b) => {
     try {
       await updateBarber(b.id, { isActive: 1 });
-      showToast(`Барбер «${b.name}» восстановлен`);
+      showToast(`Мастер «${b.name}» восстановлен`);
       await load();
     } catch (err) {
       if (err.status === 401) return onAuthError();
@@ -138,10 +168,10 @@ export default function AdminBarbersLight({ onAuthError }) {
   return (
     <div className="light-section-page">
       <div className="section-action-bar">
-        <h2 className="section-page-title">Команда барберов</h2>
+        <h2 className="section-page-title">Команда мастеров</h2>
         <button className="saas-btn-primary" onClick={openCreate}>
           <Plus size={16} />
-          <span>Добавить барбера</span>
+          <span>Добавить мастера</span>
         </button>
       </div>
 
@@ -154,7 +184,7 @@ export default function AdminBarbersLight({ onAuthError }) {
       )}
 
       {loading ? (
-        <div className="saas-loading-state"><span>Загрузка барберов...</span></div>
+        <div className="saas-loading-state"><span>Загрузка мастеров...</span></div>
       ) : (
         <>
           <div className="barbers-cards-grid">
@@ -181,7 +211,8 @@ export default function AdminBarbersLight({ onAuthError }) {
                 </div>
                 <div className="barber-mgmt-info">
                   <h3 className="barber-mgmt-name">{b.name}</h3>
-                  <span className="barber-mgmt-role">Мастер барбершопа</span>
+                  <span className="barber-mgmt-role">Мастер салона</span>
+                  {b.accountUsername && <span className="barber-mgmt-role">Логин: {b.accountUsername}</span>}
                 </div>
                 <div className="barber-mgmt-footer">
                   <span className="svc-status-badge active">Активен</span>
@@ -189,6 +220,7 @@ export default function AdminBarbersLight({ onAuthError }) {
                     <button className="saas-icon-btn" title="Редактировать" onClick={() => openEdit(b)}>
                       <Pencil size={14} />
                     </button>
+                    {b.accountUsername && <button className="saas-icon-btn danger" title="Удалить доступ" onClick={() => handleDeleteAccount(b)}><KeyRound size={14} /></button>}
                     <button className="saas-icon-btn danger" title="Удалить" onClick={() => handleDelete(b)}>
                       <Trash2 size={14} />
                     </button>
@@ -200,7 +232,7 @@ export default function AdminBarbersLight({ onAuthError }) {
 
           {inactive.length > 0 && (
             <>
-              <h3 className="section-sub-heading">Архивированные барберы</h3>
+              <h3 className="section-sub-heading">Архивированные мастера</h3>
               <div className="barbers-cards-grid muted">
                 {inactive.map((b) => (
                   <div key={b.id} className="barber-mgmt-card archived">
@@ -232,7 +264,7 @@ export default function AdminBarbersLight({ onAuthError }) {
         <div className="saas-modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="saas-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="saas-modal-header">
-              <h3>{editingBarber ? 'Редактировать барбера' : 'Новый барбер'}</h3>
+              <h3>{editingBarber ? 'Редактировать мастера' : 'Новый мастер'}</h3>
               <button className="saas-icon-btn" onClick={() => setModalOpen(false)}>
                 <X size={18} />
               </button>
@@ -265,16 +297,24 @@ export default function AdminBarbersLight({ onAuthError }) {
                 <span className="photo-hint">Нажмите для загрузки фото</span>
               </div>
               <div className="saas-form-field">
-                <label>Имя барбера</label>
+                <label>Имя мастера</label>
                 <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Например: Алекс" />
               </div>
               <div className="saas-form-field">
                 <label>Порядок сортировки</label>
                 <input type="number" required min="0" value={formSortOrder} onChange={(e) => setFormSortOrder(e.target.value)} />
               </div>
+              <div className="saas-form-field">
+                <label>Логин для кабинета мастера <small>(необязательно)</small></label>
+                <input type="text" value={formAccountUsername} onChange={(e) => setFormAccountUsername(e.target.value.toLowerCase())} placeholder="например: dias.barber" autoComplete="username" />
+              </div>
+              <div className="saas-form-field">
+                <label>{editingBarber?.accountUsername ? 'Новый пароль для смены доступа' : 'Пароль мастера'} <small>(минимум 8 символов)</small></label>
+                <input type="password" value={formAccountPassword} onChange={(e) => setFormAccountPassword(e.target.value)} placeholder="Оставьте пустым, если доступ не нужен" autoComplete="new-password" />
+              </div>
               {error && <div className="saas-alert error">{error}</div>}
               <button type="submit" className="saas-btn-primary w-full">
-                {editingBarber ? 'Сохранить изменения' : 'Добавить барбера'}
+                {editingBarber ? 'Сохранить изменения' : 'Добавить мастера'}
               </button>
             </form>
           </div>

@@ -76,6 +76,37 @@
   margin: 0;
 }
 
+.barber-public-rating { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; color: #A16207; font-size: .8rem; font-weight: 700; }
+.barber-public-rating small { color: var(--text-muted, #71717A); font-weight: 500; }
+
+.barber-latest-review {
+  padding: 11px 13px;
+  border-left: 3px solid var(--primary, #C5A55A);
+  border-radius: 0 10px 10px 0;
+  background: #FAF8F2;
+}
+
+.barber-latest-review span {
+  display: block;
+  margin-bottom: 4px;
+  color: #92762F;
+  font-size: .7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.barber-latest-review p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-main, #1A1A1A);
+  font-size: .8rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .barber-slot-action-v2 {
   display: flex;
   align-items: center;

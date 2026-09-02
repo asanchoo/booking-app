@@ -5,6 +5,7 @@ import CustomerBookingPage from './pages/CustomerBookingPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import MyBookingsPage from './pages/MyBookingsPage.jsx';
+import BarberDashboardPage from './pages/BarberDashboardPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { RefreshCw } from 'lucide-react';
 import './index.css';
@@ -46,11 +47,35 @@ function ClientProtectedRoute({ children }) {
     );
   }
 
-  if (!authenticated) {
+  if (!authenticated || role !== 'client') {
     return <Navigate to="/login" replace />;
   }
 
   return children;
+}
+
+function BarberProtectedRoute({ children }) {
+  const { authenticated, role } = useAuth();
+  if (authenticated === null) return null;
+  if (!authenticated || role !== 'barber') return <Navigate to="/login" replace />;
+  return children;
+}
+
+function RoleAwareBookingRoute() {
+  const { authenticated, role } = useAuth();
+  if (authenticated === null) return null;
+  if (authenticated && role === 'admin') return <Navigate to="/admin" replace />;
+  if (authenticated && role === 'barber') return <Navigate to="/barber" replace />;
+  return <CustomerBookingPage />;
+}
+
+function LoginRoute() {
+  const { authenticated, role } = useAuth();
+  if (authenticated === null) return null;
+  if (!authenticated) return <LoginPage />;
+  if (role === 'admin') return <Navigate to="/admin" replace />;
+  if (role === 'barber') return <Navigate to="/barber" replace />;
+  return <Navigate to="/my-account" replace />;
 }
 
 export default function App() {
@@ -60,10 +85,10 @@ export default function App() {
         <Navbar />
         <main>
           <Routes>
-            <Route path="/" element={<CustomerBookingPage />} />
+            <Route path="/" element={<RoleAwareBookingRoute />} />
             
             {/* Unified Login / Register / Password Reset page */}
-            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login" element={<LoginRoute />} />
             <Route path="/my-account/login" element={<Navigate to="/login" replace />} />
             
             {/* Protected Client Dashboard */}
@@ -84,6 +109,10 @@ export default function App() {
                   <AdminPage />
                 </AdminProtectedRoute>
               }
+            />
+            <Route
+              path="/barber"
+              element={<BarberProtectedRoute><BarberDashboardPage /></BarberProtectedRoute>}
             />
 
             {/* Catch-all fallback */}

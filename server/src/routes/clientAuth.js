@@ -1,8 +1,11 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/connection.js';
+import { getJwtSecret } from '../config/env.js';
 import { requireClientAuth } from '../middleware/requireClientAuth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { sendTelegramMessage } from '../services/telegramService.js';
 import { normalizePhone } from '../utils/phone.js';
 
@@ -10,10 +13,9 @@ const router = Router();
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const JWT_SECRET = () => process.env.JWT_SECRET || 'default_fallback_secret_key_32bytes';
-
 // ─── POST /api/client-auth/register ──────────────────────────────────────────
-router.post('/register', async (req, res, next) => {
+// Temporary relaxed limit for demo and acceptance testing. Tighten before public launch.
+router.post('/register', rateLimit({ windowMs: 10 * 60 * 1000, max: 30, message: 'Слишком много регистраций. Попробуйте через несколько минут.' }), async (req, res, next) => {
   try {
     const { phone, password, name } = req.body || {};
 
@@ -22,11 +24,14 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ error: 'Укажите корректный номер телефона' });
     }
 
-    if (!password || password.length < 6) {
-      return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
+    if (!password || password.length < 6 || password.length > 72) {
+      return res.status(400).json({ error: 'Пароль должен содержать от 6 до 72 символов' });
     }
 
     const trimmedName = String(name || '').trim();
+    if (trimmedName.length < 2 || trimmedName.length > 80) {
+      return res.status(400).json({ error: 'Имя должно содержать от 2 до 80 символов' });
+    }
 
     // Check uniqueness
     const existing = db.prepare('SELECT id FROM clients WHERE phone = ?').get(cleanPhone);
@@ -53,7 +58,7 @@ router.get('/me', (req, res) => {
   if (!token) return res.json({ authenticated: false });
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET());
+    const decoded = jwt.verify(token, getJwtSecret());
     if (decoded.role !== 'client' || !decoded.phone) return res.json({ authenticated: false });
     return res.json({ authenticated: true, phone: decoded.phone, name: decoded.name || '' });
   } catch {
@@ -67,20 +72,14 @@ router.post('/logout', (req, res) => {
   return res.json({ success: true });
 });
 
-// ─── POST /api/client-auth/telegram/generate-link (Public by phone) ─────────
-router.post('/telegram/generate-link', (req, res, next) => {
+// ─── POST /api/client-auth/telegram/generate-link ───────────────────────────
+router.post('/telegram/generate-link', requireClientAuth, (req, res, next) => {
   try {
-    const { phone: rawPhone } = req.body || {};
-    const phone = normalizePhone(rawPhone);
-
-    if (!phone || phone.length < 10) {
-      return res.status(400).json({ error: 'Укажите корректный номер телефона' });
-    }
+    const phone = req.clientPhone;
 
     const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'barbershop_astanabot';
 
-    // Generate random 8-char hex code
-    const code = Math.random().toString(36).substring(2, 10);
+    const code = crypto.randomBytes(24).toString('base64url');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins TTL
 
     db.prepare(`INSERT OR REPLACE INTO telegram_linking_codes (code, phone, expires_at) VALUES (?, ?, ?)`)
@@ -93,15 +92,10 @@ router.post('/telegram/generate-link', (req, res, next) => {
   }
 });
 
-// ─── GET /api/client-auth/telegram/status (Public by query phone) ─────────────
-router.get('/telegram/status', (req, res, next) => {
+// ─── GET /api/client-auth/telegram/status ───────────────────────────────────
+router.get('/telegram/status', requireClientAuth, (req, res, next) => {
   try {
-    const rawPhone = req.query.phone;
-    const phone = normalizePhone(rawPhone);
-
-    if (!phone) {
-      return res.json({ linked: false });
-    }
+    const phone = req.clientPhone;
 
     const linkRecord = db.prepare(`SELECT chat_id FROM telegram_links WHERE phone = ?`).get(phone);
     const linked = Boolean(linkRecord && linkRecord.chat_id);
@@ -112,7 +106,7 @@ router.get('/telegram/status', (req, res, next) => {
 });
 
 // ─── POST /api/client-auth/forgot-password/send-code ─────────────────────────
-router.post('/forgot-password/send-code', async (req, res, next) => {
+router.post('/forgot-password/send-code', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Слишком много запросов кода. Попробуйте через 15 минут.' }), async (req, res, next) => {
   try {
     const { phone } = req.body || {};
     const cleanPhone = normalizePhone(phone);
@@ -148,7 +142,7 @@ router.post('/forgot-password/send-code', async (req, res, next) => {
       }
     }
 
-    const code = String(Math.floor(1000 + Math.random() * 9000));
+    const code = String(crypto.randomInt(1000, 10000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     db.prepare(`INSERT INTO otp_codes (phone, code, expires_at, used) VALUES (?, ?, ?, 0)`)

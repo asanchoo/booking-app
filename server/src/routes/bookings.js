@@ -1,18 +1,17 @@
 import { Router } from 'express';
-import jwt from 'jsonwebtoken';
 import { db } from '../db/connection.js';
 import { createBooking, listBookings, rescheduleBooking } from '../services/bookingService.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireClientAuth } from '../middleware/requireClientAuth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
-
-const JWT_SECRET = () => process.env.JWT_SECRET || 'default_fallback_secret_key_32bytes';
 
 router.get('/', requireAuth, (req, res) => {
   res.json(listBookings());
 });
 
-router.post('/', (req, res, next) => {
+router.post('/', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Слишком много попыток записи. Попробуйте позже.' }), (req, res, next) => {
   try {
     const booking = createBooking(req.body);
     res.status(201).json(booking);
@@ -22,36 +21,19 @@ router.post('/', (req, res, next) => {
 });
 
 // POST /api/bookings/:id/reschedule
-router.post('/:id/reschedule', (req, res, next) => {
+router.post('/:id/reschedule', requireClientAuth, (req, res, next) => {
   try {
     const bookingId = parseInt(req.params.id, 10);
     if (!Number.isFinite(bookingId) || bookingId <= 0) {
       return res.status(400).json({ error: 'Неверный ID записи' });
     }
 
-    const { newStartsAt, clientPhone: bodyPhone, phone: bodyPhone2 } = req.body || {};
+    const { newStartsAt } = req.body || {};
     if (!newStartsAt) {
       return res.status(400).json({ error: 'Укажите новое время newStartsAt' });
     }
 
-    // Determine requesting client phone (from cookie token or body)
-    let clientPhone = bodyPhone || bodyPhone2 || '';
-
-    const token = req.cookies?.client_token;
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET());
-        if (decoded.role === 'client' && decoded.phone) {
-          clientPhone = decoded.phone;
-        }
-      } catch {
-        // Token invalid, fall back to body phone
-      }
-    }
-
-    if (!clientPhone) {
-      return res.status(401).json({ error: 'Не указан номер телефона клиента' });
-    }
+    const clientPhone = req.clientPhone;
 
     // Check ownership
     const booking = db

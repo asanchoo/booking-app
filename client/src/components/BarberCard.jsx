@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Star } from 'lucide-react';
 import './BarberCard.css';
 
 export default function BarberCard({
@@ -94,9 +94,17 @@ export default function BarberCard({
 
         <div className="barber-info-v2">
           <h3 className="barber-name-v2">{barber.name}</h3>
-          <p className="barber-title-v2">Мастер барбершопа</p>
+          <p className="barber-title-v2">Мастер салона</p>
+          <span className="barber-public-rating"><Star size={13} fill="currentColor" /> {Number(barber.rating || 5).toFixed(1)} <small>({barber.reviewCount || 0})</small></span>
         </div>
       </div>
+
+      {barber.latestReviewComment && (
+        <div className="barber-latest-review">
+          <span>Последний отзыв{barber.latestReviewAuthor ? ` · ${barber.latestReviewAuthor}` : ''}</span>
+          <p>«{barber.latestReviewComment}»</p>
+        </div>
+      )}
 
       <div className="barber-slot-action-v2">
         {top3Slots.length > 0 ? (

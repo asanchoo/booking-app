@@ -10,10 +10,11 @@ export async function fetchServices() {
   return res.json();
 }
 
-export async function fetchBarbers() {
-  const res = await fetch('/api/barbers');
+export async function fetchBarbers(serviceId) {
+  const query = serviceId ? `?serviceId=${encodeURIComponent(serviceId)}` : '';
+  const res = await fetch(`/api/barbers${query}`);
   if (!res.ok) {
-    throw new Error('Не удалось загрузить список барберов');
+    throw new Error('Не удалось загрузить список мастеров');
   }
   return res.json();
 }

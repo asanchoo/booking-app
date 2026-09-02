@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import bcrypt from 'bcrypt';
 import { db } from '../db/connection.js';
 import { validatePayload } from '../utils/validation.js';
 import multer from 'multer';
@@ -38,12 +39,72 @@ const router = Router();
 router.get('/', (req, res) => {
   const barbers = db
     .prepare(`
-      SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive
-      FROM barbers
-      ORDER BY sort_order ASC
+      SELECT b.id, b.name, b.photo_url AS photoUrl, b.sort_order AS sortOrder, b.is_active AS isActive,
+        ba.username AS accountUsername, ROUND(COALESCE(AVG(r.rating), 5), 2) AS rating,
+        COUNT(r.id) AS reviewCount
+      FROM barbers b
+      LEFT JOIN barber_accounts ba ON ba.barber_id = b.id
+      LEFT JOIN barber_reviews r ON r.barber_id = b.id
+      GROUP BY b.id
+      ORDER BY b.sort_order ASC
     `)
     .all();
   res.json(barbers);
+});
+
+router.get('/time-blocks', (req, res, next) => {
+  try {
+    const blocks = db.prepare(`
+      SELECT mtb.id, mtb.master_id AS masterId, b.name AS masterName,
+        mtb.starts_at AS startsAt, mtb.ends_at AS endsAt, mtb.reason
+      FROM master_time_blocks mtb
+      JOIN barbers b ON b.id = mtb.master_id
+      ORDER BY mtb.starts_at ASC
+    `).all();
+    return res.json(blocks);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/:id/account', async (req, res, next) => {
+  try {
+    const barberId = Number.parseInt(req.params.id, 10);
+    const username = String(req.body?.username || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    if (!Number.isInteger(barberId) || barberId <= 0) return res.status(400).json({ error: 'Некорректный ID мастера' });
+    if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
+      return res.status(400).json({ error: 'Логин: 3–32 символа, только латиница, цифры, точка, дефис или подчёркивание' });
+    }
+    if (password.length < 8) return res.status(400).json({ error: 'Пароль должен содержать минимум 8 символов' });
+    const barber = db.prepare('SELECT id FROM barbers WHERE id = ?').get(barberId);
+    if (!barber) return res.status(404).json({ error: 'Мастер не найден' });
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    db.prepare(`
+      INSERT INTO barber_accounts (barber_id, username, password_hash)
+      VALUES (?, ?, ?)
+      ON CONFLICT(barber_id) DO UPDATE SET username = excluded.username, password_hash = excluded.password_hash
+    `).run(barberId, username, passwordHash);
+    return res.status(201).json({ success: true, username });
+  } catch (error) {
+    if (String(error?.message).includes('UNIQUE constraint failed: barber_accounts.username')) {
+      return res.status(409).json({ error: 'Этот логин уже занят' });
+    }
+    return next(error);
+  }
+});
+
+router.delete('/:id/account', (req, res, next) => {
+  try {
+    const barberId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(barberId) || barberId <= 0) return res.status(400).json({ error: 'Некорректный ID мастера' });
+    const result = db.prepare('DELETE FROM barber_accounts WHERE barber_id = ?').run(barberId);
+    if (result.changes === 0) return res.status(404).json({ error: 'Аккаунт мастера не найден' });
+    return res.json({ success: true });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 // POST create barber

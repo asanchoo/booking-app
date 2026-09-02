@@ -15,19 +15,23 @@ export default function Navbar() {
   const getAccountLink = () => {
     if (!authenticated) return '/login';
     if (role === 'admin') return '/admin';
+    if (role === 'barber') return '/barber';
     return '/my-account';
   };
 
   const getAccountLabel = () => {
     if (!authenticated) return 'Личный кабинет';
     if (role === 'admin') return 'Админ-панель';
+    if (role === 'barber') return 'Кабинет мастера';
     return 'Мои записи';
   };
 
   const isAccountActive =
     location.pathname === '/login' ||
     location.pathname === '/my-account' ||
-    location.pathname === '/admin';
+    location.pathname === '/admin' || location.pathname === '/barber';
+
+  const canBook = role !== 'admin' && role !== 'barber';
 
   return (
     <header className="navbar-header">
@@ -42,13 +46,15 @@ export default function Navbar() {
         </Link>
 
         <nav className="navbar-links">
-          <Link
-            to="/"
-            className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
-          >
-            <CalendarCheck size={18} />
-            <span>Записаться</span>
-          </Link>
+          {canBook && (
+            <Link
+              to="/"
+              className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
+            >
+              <CalendarCheck size={18} />
+              <span>Записаться</span>
+            </Link>
+          )}
 
           <Link
             to={getAccountLink()}

@@ -31,10 +31,10 @@ export function getAdminServices() {
   return request(`${BASE}/services`);
 }
 
-export function createService({ name, durationMinutes, priceCents }) {
+export function createService({ name, description, durationMinutes, priceCents, masterIds }) {
   return request(`${BASE}/services`, {
     method: 'POST',
-    body: JSON.stringify({ name, durationMinutes, priceCents }),
+    body: JSON.stringify({ name, description, durationMinutes, priceCents, masterIds }),
   });
 }
 
@@ -54,6 +54,10 @@ export function getAdminBarbers() {
   return request(`${BASE}/barbers`);
 }
 
+export function getAdminMasterTimeBlocks() {
+  return request(`${BASE}/barbers/time-blocks`);
+}
+
 export function createBarber({ name, photoUrl, sortOrder }) {
   return request(`${BASE}/barbers`, {
     method: 'POST',
@@ -70,6 +74,37 @@ export function updateBarber(id, fields) {
 
 export function deleteBarber(id) {
   return request(`${BASE}/barbers/${id}`, { method: 'DELETE' });
+}
+
+export function createBarberAccount(id, { username, password }) {
+  return request(`${BASE}/barbers/${id}/account`, {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export function deleteBarberAccount(id) {
+  return request(`${BASE}/barbers/${id}/account`, { method: 'DELETE' });
+}
+
+// ─── Reviews ───────────────────────────────────────────────
+export function getAdminReviews() {
+  return request(`${BASE}/reviews`);
+}
+
+export function setReviewCommentVisibility(id, hidden) {
+  return request(`${BASE}/reviews/${id}/visibility`, {
+    method: 'PATCH',
+    body: JSON.stringify({ hidden }),
+  });
+}
+
+// ─── Bookings ──────────────────────────────────────────────
+export function createAdminBooking(payload) {
+  return request(`${BASE}/bookings`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function uploadBarberPhoto(barberId, file) {

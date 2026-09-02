@@ -2,12 +2,12 @@ import bcrypt from 'bcrypt';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/connection.js';
+import { getJwtSecret } from '../config/env.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-const JWT_SECRET = () => process.env.JWT_SECRET || 'default_fallback_secret_key_32bytes';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -16,10 +16,17 @@ const COOKIE_OPTS = {
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
+function clearRoleCookies(res, keepRole) {
+  const cookieByRole = { admin: 'admin_token', client: 'client_token', barber: 'barber_token' };
+  Object.entries(cookieByRole).forEach(([role, cookie]) => {
+    if (role !== keepRole) res.clearCookie(cookie, { httpOnly: true, sameSite: 'lax' });
+  });
+}
+
 // ─── POST /api/auth/login ────────────────────────────────────────────────────
 // Unified login: accepts { login, password }
 // login can be ADMIN_USERNAME or a client phone number
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Слишком много попыток входа. Попробуйте через 15 минут.' }), async (req, res) => {
   const { login, password } = req.body || {};
 
   if (!login || !password) {
@@ -36,7 +43,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
 
-    const token = jwt.sign({ role: 'admin' }, JWT_SECRET(), { expiresIn: '7d' });
+    const token = jwt.sign({ role: 'admin' }, getJwtSecret(), { expiresIn: '7d' });
+    clearRoleCookies(res, 'admin');
     res.cookie('admin_token', token, COOKIE_OPTS);
     return res.json({ success: true, role: 'admin' });
   }
@@ -53,24 +61,43 @@ router.post('/login', async (req, res) => {
     .prepare(`SELECT id, phone, password_hash, name FROM clients WHERE phone = ? OR phone = ?`)
     .get(cleanPhone, phoneVariant);
 
-  if (!client) {
+  if (client) {
+    const isValid = await bcrypt.compare(password, client.password_hash);
+    if (isValid) {
+      const token = jwt.sign({ role: 'client', phone: client.phone, name: client.name }, getJwtSecret(), { expiresIn: '7d' });
+      clearRoleCookies(res, 'client');
+      res.cookie('client_token', token, COOKIE_OPTS);
+      return res.json({ success: true, role: 'client', phone: client.phone, name: client.name });
+    }
+  }
+
+  // 3. Try barber account by its username.
+  const barberAccount = db.prepare(`
+    SELECT ba.barber_id AS barberId, ba.password_hash AS passwordHash, b.name
+    FROM barber_accounts ba
+    JOIN barbers b ON b.id = ba.barber_id
+    WHERE ba.username = ? AND b.is_active = 1
+  `).get(String(login).trim());
+
+  if (!barberAccount || !(await bcrypt.compare(password, barberAccount.passwordHash))) {
     return res.status(401).json({ error: 'Неверный логин или пароль' });
   }
 
-  const isValid = await bcrypt.compare(password, client.password_hash);
-  if (!isValid) {
-    return res.status(401).json({ error: 'Неверный логин или пароль' });
-  }
-
-  const token = jwt.sign({ role: 'client', phone: client.phone, name: client.name }, JWT_SECRET(), { expiresIn: '7d' });
-  res.cookie('client_token', token, COOKIE_OPTS);
-  return res.json({ success: true, role: 'client', phone: client.phone, name: client.name });
+  const token = jwt.sign(
+    { role: 'barber', barberId: barberAccount.barberId, name: barberAccount.name },
+    getJwtSecret(),
+    { expiresIn: '7d' },
+  );
+  clearRoleCookies(res, 'barber');
+  res.cookie('barber_token', token, COOKIE_OPTS);
+  return res.json({ success: true, role: 'barber', barberId: barberAccount.barberId, name: barberAccount.name });
 });
 
 // ─── POST /api/auth/logout ───────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
   res.clearCookie('admin_token', { httpOnly: true, sameSite: 'lax' });
   res.clearCookie('client_token', { httpOnly: true, sameSite: 'lax' });
+  res.clearCookie('barber_token', { httpOnly: true, sameSite: 'lax' });
   return res.json({ success: true });
 });
 
@@ -81,7 +108,7 @@ router.get('/me', (req, res) => {
   const adminToken = req.cookies?.admin_token;
   if (adminToken) {
     try {
-      const decoded = jwt.verify(adminToken, JWT_SECRET());
+      const decoded = jwt.verify(adminToken, getJwtSecret());
       if (decoded.role === 'admin') {
         return res.json({ authenticated: true, role: 'admin' });
       }
@@ -92,9 +119,19 @@ router.get('/me', (req, res) => {
   const clientToken = req.cookies?.client_token;
   if (clientToken) {
     try {
-      const decoded = jwt.verify(clientToken, JWT_SECRET());
+      const decoded = jwt.verify(clientToken, getJwtSecret());
       if (decoded.role === 'client' && decoded.phone) {
         return res.json({ authenticated: true, role: 'client', phone: decoded.phone, name: decoded.name || '' });
+      }
+    } catch { /* fall through */ }
+  }
+
+  const barberToken = req.cookies?.barber_token;
+  if (barberToken) {
+    try {
+      const decoded = jwt.verify(barberToken, getJwtSecret());
+      if (decoded.role === 'barber' && Number.isInteger(decoded.barberId)) {
+        return res.json({ authenticated: true, role: 'barber', barberId: decoded.barberId, name: decoded.name || '' });
       }
     } catch { /* fall through */ }
   }

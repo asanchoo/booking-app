@@ -6,6 +6,7 @@ import {
   Users,
   Scissors,
   UserCog,
+  MessageSquareText,
   Settings,
   LogOut,
   ChevronLeft,
@@ -18,7 +19,8 @@ const NAV_ITEMS = [
   { id: 'calendar', label: 'Календарь', icon: Calendar },
   { id: 'clients', label: 'Клиенты', icon: Users },
   { id: 'services', label: 'Услуги', icon: Scissors },
-  { id: 'barbers', label: 'Барберы', icon: UserCog },
+  { id: 'barbers', label: 'Мастера', icon: UserCog },
+  { id: 'reviews', label: 'Отзывы', icon: MessageSquareText },
   { id: 'settings', label: 'Настройки', icon: Settings },
 ];
 

@@ -10,6 +10,7 @@ router.get('/', (req, res) => {
       SELECT
         id,
         name,
+        description,
         duration_minutes AS durationMinutes,
         price_cents AS priceCents
       FROM services
