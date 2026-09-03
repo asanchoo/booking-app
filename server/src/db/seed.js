@@ -78,6 +78,24 @@ const seed = db.transaction(() => {
   } else {
     console.log(`Business settings already exist (${settingsCount}), skipping.`);
   }
+
+  // Migration 012 may run before a fresh database has been seeded. In that
+  // case its compatibility INSERT has no rows to connect, leaving the public
+  // catalog without any masters and making a clean CI/deployment differ from
+  // an upgraded local database.
+  const serviceMasterCount = db.prepare('SELECT COUNT(*) AS count FROM service_masters').get().count;
+  if (serviceMasterCount === 0) {
+    const result = db.prepare(`
+      INSERT OR IGNORE INTO service_masters (service_id, master_id)
+      SELECT services.id, barbers.id
+      FROM services
+      CROSS JOIN barbers
+      WHERE services.is_active = 1 AND barbers.is_active = 1
+    `).run();
+    console.log(`Seeded ${result.changes} service-master assignments.`);
+  } else {
+    console.log(`Service-master assignments already exist (${serviceMasterCount}), skipping.`);
+  }
 });
 
 seed();
