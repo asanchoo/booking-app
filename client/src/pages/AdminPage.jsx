@@ -26,6 +26,9 @@ import AdminBarbersLight from '../components/admin/AdminBarbersLight.jsx';
 import AdminSettingsLight from '../components/admin/AdminSettingsLight.jsx';
 import AdminReviews from '../components/admin/AdminReviews.jsx';
 import AdminBookingModal from '../components/admin/AdminBookingModal.jsx';
+import AdminRescheduleModal from '../components/admin/AdminRescheduleModal.jsx';
+import { cancelAdminBooking } from '../api/adminApi.js';
+import AdminAnalytics from '../components/admin/AdminAnalytics.jsx';
 
 import './AdminPage.css';
 
@@ -42,6 +45,7 @@ export default function AdminPage() {
 
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
 
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -150,6 +154,7 @@ export default function AdminPage() {
               {activeTab === 'services' && 'Услуги и прайс-лист'}
               {activeTab === 'barbers' && 'Команда мастеров'}
               {activeTab === 'reviews' && 'Отзывы и качество сервиса'}
+              {activeTab === 'analytics' && 'Аналитика бизнеса'}
               {activeTab === 'settings' && 'Настройки заведения'}
             </h1>
           </div>
@@ -277,6 +282,13 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* ANALYTICS */}
+          {activeTab === 'analytics' && (
+            <div className="step-in">
+              <AdminAnalytics bookings={bookings} />
+            </div>
+          )}
+
           {/* SETTINGS */}
           {activeTab === 'settings' && (
             <div className="step-in">
@@ -291,6 +303,13 @@ export default function AdminPage() {
         <AppointmentDetailsPanel
           booking={selectedBooking}
           onClose={() => setSelectedBooking(null)}
+          onReschedule={setRescheduleTarget}
+          onCancel={async (booking) => {
+            const result = await cancelAdminBooking(booking.id);
+            const updated = { ...booking, status: result.status };
+            setBookings((current) => current.map((item) => item.id === booking.id ? updated : item));
+            setSelectedBooking(updated);
+          }}
         />
       )}
       <AdminBookingModal
@@ -301,6 +320,15 @@ export default function AdminPage() {
         onCreated={(booking) => {
           setBookings((current) => [...current, booking].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)));
           setSelectedBooking(booking);
+        }}
+      />
+      <AdminRescheduleModal
+        booking={rescheduleTarget}
+        onClose={() => setRescheduleTarget(null)}
+        onAuthError={handleAuthError}
+        onUpdated={(updated) => {
+          setBookings((current) => current.map((item) => item.id === updated.id ? updated : item));
+          setSelectedBooking(updated);
         }}
       />
     </div>

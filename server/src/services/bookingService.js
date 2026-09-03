@@ -23,6 +23,7 @@ function mapBooking(row) {
     createdAt: row.createdAt,
     clientConfirmedAt: row.clientConfirmedAt || row.client_confirmed_at || null,
     bookingSource: row.bookingSource || 'online',
+    aiAssisted: Boolean(row.aiAssisted),
   };
 }
 
@@ -81,8 +82,8 @@ function findOverlappingTimeBlock(barberId, startsAt, endsAt) {
 }
 
 const insertBooking = db.prepare(`
-  INSERT INTO bookings (service_id, barber_id, client_name, client_phone, starts_at, ends_at, status, booking_source)
-  VALUES (@serviceId, @barberId, @clientName, @clientPhone, @startsAt, @endsAt, 'confirmed', @bookingSource)
+  INSERT INTO bookings (service_id, barber_id, client_name, client_phone, starts_at, ends_at, status, booking_source, ai_assisted)
+  VALUES (@serviceId, @barberId, @clientName, @clientPhone, @startsAt, @endsAt, 'confirmed', @bookingSource, @aiAssisted)
 `);
 
 const selectBookingById = db.prepare(`
@@ -101,6 +102,7 @@ const selectBookingById = db.prepare(`
     b.attendance_status AS attendanceStatus,
     b.created_at AS createdAt,
     b.booking_source AS bookingSource,
+    b.ai_assisted AS aiAssisted,
     COALESCE(cr.rating, 5) AS clientRating
   FROM bookings b
   JOIN services s ON s.id = b.service_id
@@ -128,6 +130,7 @@ export function listBookings() {
         b.attendance_status AS attendanceStatus,
         b.created_at AS createdAt,
         b.booking_source AS bookingSource,
+        b.ai_assisted AS aiAssisted,
         COALESCE(cr.rating, 5) AS clientRating
       FROM bookings b
       JOIN services s ON s.id = b.service_id
@@ -166,6 +169,7 @@ export function listClientBookings(clientPhone) {
         b.attendance_status AS attendanceStatus,
         b.created_at AS createdAt,
         b.booking_source AS bookingSource,
+        b.ai_assisted AS aiAssisted,
         b.client_confirmed_at AS clientConfirmedAt,
         COALESCE(cr.rating, 5) AS clientRating,
         EXISTS(SELECT 1 FROM barber_reviews review WHERE review.booking_id = b.id) AS hasReview
@@ -189,7 +193,7 @@ export function listClientBookings(clientPhone) {
   }));
 }
 
-export function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online' }) {
+export function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online', aiAssisted = false }) {
   if (!Number.isInteger(serviceId) || serviceId <= 0) {
     throw new HttpError(400, 'serviceId must be a positive integer');
   }
@@ -255,6 +259,7 @@ export function createBooking({ serviceId, barberId, startsAt, clientName, clien
       startsAt: normalizedStartsAt,
       endsAt,
       bookingSource: source,
+      aiAssisted: aiAssisted ? 1 : 0,
     });
 
     return selectBookingById.get(result.lastInsertRowid);
@@ -270,10 +275,13 @@ export function cancelBooking(bookingId) {
   return result.changes > 0;
 }
 
-export function rescheduleBooking(bookingId, newStartsAt) {
+export function rescheduleBooking(bookingId, newStartsAt, { enforceClientPolicy = true, penalizeClient = true } = {}) {
   const normalizedStartsAt = parseDateTimeParam(newStartsAt);
   if (!normalizedStartsAt) {
     throw new HttpError(400, 'newStartsAt must be in YYYY-MM-DDTHH:mm:ss format');
+  }
+  if (new Date(normalizedStartsAt).getTime() <= Date.now()) {
+    throw new HttpError(400, 'Нельзя перенести запись в прошлое');
   }
 
   const booking = db
@@ -293,10 +301,10 @@ export function rescheduleBooking(bookingId, newStartsAt) {
     throw new HttpError(400, 'Cannot reschedule cancelled booking');
   }
 
-  assertBookingCanBeChanged(booking.starts_at);
+  if (enforceClientPolicy) assertBookingCanBeChanged(booking.starts_at);
 
   const minutesUntilVisit = (new Date(booking.starts_at).getTime() - Date.now()) / 60_000;
-  if (minutesUntilVisit < 24 * 60) {
+  if (penalizeClient && minutesUntilVisit < 24 * 60) {
     applyClientRatingEvent({
       phone: booking.client_phone,
       bookingId,
@@ -312,6 +320,9 @@ export function rescheduleBooking(bookingId, newStartsAt) {
   }
 
   const updateTx = db.transaction(() => {
+    if (findOverlappingTimeBlock(booking.barber_id, normalizedStartsAt, newEndsAt)) {
+      throw new HttpError(409, 'Мастер недоступен в выбранное время');
+    }
     const conflict = db
       .prepare(`
         SELECT id FROM bookings

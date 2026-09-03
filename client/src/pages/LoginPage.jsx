@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { registerClient, sendForgotPasswordCode, resetForgotPassword } from '../api/clientAuthApi.js';
 import { Scissors, User, KeyRound, AlertCircle, Loader2, ArrowLeft, CheckCircle2, Phone } from 'lucide-react';
 import './LoginPage.css';
 
 export default function LoginPage() {
+  const [searchParams] = useSearchParams();
   // Modes: 'login' | 'register' | 'forgot_step1' | 'forgot_step2'
   const [mode, setMode] = useState('login');
 
@@ -25,7 +26,9 @@ export default function LoginPage() {
   const [forgotNewPassword, setForgotNewPassword] = useState('');
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
 
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => searchParams.get('telegramLogin') === 'expired'
+    ? 'Ссылка входа из Telegram недействительна или уже истекла. Запросите новую ссылку в боте.'
+    : '');
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 

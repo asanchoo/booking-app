@@ -107,6 +107,17 @@ export function createAdminBooking(payload) {
   });
 }
 
+export function cancelAdminBooking(id) {
+  return request(`${BASE}/bookings/${id}/cancel`, { method: 'POST' });
+}
+
+export function rescheduleAdminBooking(id, newStartsAt) {
+  return request(`${BASE}/bookings/${id}/reschedule`, {
+    method: 'POST',
+    body: JSON.stringify({ newStartsAt }),
+  });
+}
+
 export async function uploadBarberPhoto(barberId, file) {
   const formData = new FormData();
   formData.append('photo', file);

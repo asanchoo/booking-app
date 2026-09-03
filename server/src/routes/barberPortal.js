@@ -5,6 +5,8 @@ import { applyClientRatingEvent } from '../services/clientRatingService.js';
 import { HttpError } from '../utils/httpError.js';
 import { formatDateTime, parseDateTimeParam } from '../utils/datetime.js';
 import { normalizePhone } from '../utils/phone.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+import { barberPhotoUpload, replaceBarberPhoto } from '../services/barberPhotoService.js';
 
 const router = Router();
 router.use(requireBarberAuth);
@@ -21,6 +23,21 @@ router.get('/me', (req, res, next) => {
   } catch (error) {
     return next(error);
   }
+});
+
+router.post('/me/photo', rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message: 'Слишком много попыток загрузки. Попробуйте позже.' }), (req, res, next) => {
+  barberPhotoUpload.single('photo')(req, res, (uploadError) => {
+    if (uploadError) {
+      const error = new Error(uploadError.code === 'LIMIT_FILE_SIZE' ? 'Размер фотографии не должен превышать 5 МБ' : uploadError.message);
+      error.status = 400;
+      return next(error);
+    }
+    try {
+      return res.json(replaceBarberPhoto({ barberId: req.barberId, file: req.file }));
+    } catch (error) {
+      return next(error);
+    }
+  });
 });
 
 router.get('/bookings', (req, res, next) => {

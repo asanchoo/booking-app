@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Phone, Scissors, Clock, CheckCircle2, User, Eye, Plus } from 'lucide-react';
+import { Search, Phone, Scissors, Clock, CheckCircle2, User, Eye, Plus, Download } from 'lucide-react';
 
 export default function AppointmentsTable({
   bookings = [],
@@ -58,6 +58,41 @@ export default function AppointmentsTable({
     return cName.includes(q) || cPhone.includes(q) || sName.includes(q) || bName.includes(q);
   });
 
+  const exportCsv = () => {
+    const protectSpreadsheetValue = (value) => {
+      const text = String(value ?? '');
+      return /^[=+\-@]/.test(text.trimStart()) ? `'${text}` : text;
+    };
+    const cell = (value) => `"${protectSpreadsheetValue(value).replace(/"/g, '""')}"`;
+    const rows = filteredBookings.map((booking) => {
+      const startsAt = new Date(booking.startsAt || booking.start_time);
+      const status = getStatusInfo(booking).label;
+      return [
+        booking.id,
+        startsAt.toLocaleDateString('ru-RU'),
+        startsAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        booking.clientName || booking.customer_name || '',
+        booking.clientPhone || booking.customer_phone || '',
+        booking.barberName || booking.barber_name || '',
+        booking.serviceName || booking.service_name || '',
+        Number(booking.servicePriceCents || 0) / 100,
+        status,
+        booking.attendanceStatus || 'pending',
+        booking.bookingSource === 'admin' ? 'Администратор' : 'Онлайн',
+      ];
+    });
+    const headers = ['ID', 'Дата', 'Время', 'Клиент', 'Телефон', 'Мастер', 'Услуга', 'Стоимость, ₸', 'Статус', 'Результат визита', 'Источник'];
+    const csv = `\uFEFF${[headers, ...rows].map((row) => row.map(cell).join(';')).join('\r\n')}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `zapisi-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="saas-table-card">
       <div className="table-toolbar">
@@ -88,6 +123,7 @@ export default function AppointmentsTable({
           ))}
         </div>
         <button className="admin-new-booking-button" onClick={onCreateBooking}><Plus size={15} /> Новая запись</button>
+        <button className="admin-export-button" onClick={exportCsv} disabled={filteredBookings.length === 0}><Download size={15} /> CSV · {filteredBookings.length}</button>
       </div>
 
       {isLoading ? (

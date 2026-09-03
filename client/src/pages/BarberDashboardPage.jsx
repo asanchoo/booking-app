@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, CheckCircle2, ChevronDown, CircleAlert, Clock3, Coffee, Loader2, LogOut, MessageSquareText, NotebookPen, Phone, Plus, Save, Send, Star, Timer, Trash2, Users, X } from 'lucide-react';
-import { createMasterTimeBlock, deleteMasterTimeBlock, getBarberBookings, getBarberProfile, getMasterReviews, getMasterTimeBlocks, markBookingAttendance, saveMasterClientNote } from '../api/barberApi.js';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, Camera, CheckCircle2, ChevronDown, CircleAlert, Clock3, Coffee, Loader2, LogOut, MessageSquareText, NotebookPen, Phone, Plus, Save, Send, Star, Timer, Trash2, Users, X } from 'lucide-react';
+import { createMasterTimeBlock, deleteMasterTimeBlock, getBarberBookings, getBarberProfile, getMasterReviews, getMasterTimeBlocks, markBookingAttendance, saveMasterClientNote, uploadOwnMasterPhoto } from '../api/barberApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import './BarberDashboardPage.css';
@@ -30,6 +30,8 @@ export default function BarberDashboardPage() {
   const [noteTarget, setNoteTarget] = useState(null);
   const [noteValue, setNoteValue] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
+  const [photoSaving, setPhotoSaving] = useState(false);
+  const photoInputRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -87,6 +89,29 @@ export default function BarberDashboardPage() {
     }
   };
   const handleLogout = async () => { await logout(); navigate('/login'); };
+  const changeProfilePhoto = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setError('');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Выберите фотографию в формате JPEG, PNG или WebP');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Размер фотографии не должен превышать 5 МБ');
+      return;
+    }
+    setPhotoSaving(true);
+    try {
+      const updated = await uploadOwnMasterPhoto(file);
+      setProfile((current) => ({ ...current, ...updated }));
+    } catch (err) {
+      setError(err.message || 'Не удалось обновить фотографию');
+    } finally {
+      setPhotoSaving(false);
+    }
+  };
   const openBlockForm = () => {
     const start = new Date();
     start.setSeconds(0, 0);
@@ -153,7 +178,14 @@ export default function BarberDashboardPage() {
   return (
     <div className="barber-dashboard">
       <header className="barber-dashboard-header">
-        <div><p className="barber-dashboard-kicker">Рабочий кабинет</p><h1>{profile?.name || 'Мастер'}</h1></div>
+        <div className="barber-profile-heading">
+          <button type="button" className="barber-profile-photo" onClick={() => !photoSaving && photoInputRef.current?.click()} aria-label="Изменить фотографию профиля" disabled={photoSaving}>
+            {profile?.photoUrl ? <img src={profile.photoUrl} alt={`Фотография мастера ${profile.name}`} /> : <span>{String(profile?.name || 'М').charAt(0).toUpperCase()}</span>}
+            <i>{photoSaving ? <Loader2 size={17} className="spin" /> : <Camera size={17} />}</i>
+          </button>
+          <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={changeProfilePhoto} hidden />
+          <div><p className="barber-dashboard-kicker">Рабочий кабинет</p><h1>{profile?.name || 'Мастер'}</h1><button type="button" className="barber-change-photo" onClick={() => photoInputRef.current?.click()} disabled={photoSaving}>{photoSaving ? 'Загружаем…' : 'Изменить фотографию'}</button></div>
+        </div>
         <button className="barber-logout" onClick={handleLogout}><LogOut size={16} /> Выйти</button>
       </header>
 

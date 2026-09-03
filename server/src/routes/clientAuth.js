@@ -8,8 +8,16 @@ import { requireClientAuth } from '../middleware/requireClientAuth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { sendTelegramMessage } from '../services/telegramService.js';
 import { normalizePhone } from '../utils/phone.js';
+import { createTelegramLink } from '../services/telegramLinkService.js';
+import { consumeTelegramLoginToken } from '../services/telegramLoginService.js';
 
 const router = Router();
+const CLIENT_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -75,18 +83,7 @@ router.post('/logout', (req, res) => {
 // ─── POST /api/client-auth/telegram/generate-link ───────────────────────────
 router.post('/telegram/generate-link', requireClientAuth, (req, res, next) => {
   try {
-    const phone = req.clientPhone;
-
-    const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'barbershop_astanabot';
-
-    const code = crypto.randomBytes(24).toString('base64url');
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins TTL
-
-    db.prepare(`INSERT OR REPLACE INTO telegram_linking_codes (code, phone, expires_at) VALUES (?, ?, ?)`)
-      .run(code, phone, expiresAt);
-
-    const link = `https://t.me/${botUsername}?start=${code}`;
-    return res.json({ link });
+    return res.json(createTelegramLink(req.clientPhone));
   } catch (error) {
     next(error);
   }
@@ -102,6 +99,19 @@ router.get('/telegram/status', requireClientAuth, (req, res, next) => {
     return res.json({ linked });
   } catch (error) {
     next(error);
+  }
+});
+
+router.get('/telegram-login', rateLimit({ windowMs: 10 * 60 * 1000, max: 20, message: 'Слишком много попыток входа. Попробуйте позже.' }), (req, res) => {
+  try {
+    const client = consumeTelegramLoginToken(req.query?.token);
+    const token = jwt.sign({ role: 'client', phone: client.phone, name: client.name }, getJwtSecret(), { expiresIn: '7d' });
+    res.clearCookie('admin_token', { httpOnly: true, sameSite: 'lax' });
+    res.clearCookie('barber_token', { httpOnly: true, sameSite: 'lax' });
+    res.cookie('client_token', token, CLIENT_COOKIE_OPTIONS);
+    return res.redirect(303, '/my-account');
+  } catch {
+    return res.redirect(303, '/login?telegramLogin=expired');
   }
 });
 

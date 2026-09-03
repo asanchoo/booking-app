@@ -2,6 +2,7 @@ import { db } from '../db/connection.js';
 import { sendTelegramMessage } from './telegramService.js';
 
 export async function checkAndSendReminders() {
+  const stats = { reminders3h: 0, reminders1h: 0, reviewRequests: 0 };
   try {
     const now = new Date();
     const nowMs = now.getTime();
@@ -56,6 +57,7 @@ export async function checkAndSendReminders() {
           const text = `⏰ Напоминание: запись на ${bk.service_name} к ${barberName} сегодня в ${timeStr} (через 3 часа)`;
           try {
             await sendTelegramMessage(link.chat_id, text);
+            stats.reminders3h += 1;
           } catch (err) {
             console.error(`[Reminder] Failed to send 3h reminder for booking #${bk.id}:`, err?.message);
           }
@@ -84,6 +86,7 @@ export async function checkAndSendReminders() {
                 ],
               },
             });
+            stats.reminders1h += 1;
           } catch (err) {
             console.error(`[Reminder] Failed to send 1h reminder for booking #${bk.id}:`, err?.message);
           }
@@ -127,6 +130,7 @@ export async function checkAndSendReminders() {
         });
         db.prepare(`UPDATE bookings SET review_request_sent_at = ? WHERE id = ?`)
           .run(new Date().toISOString(), booking.id);
+        stats.reviewRequests += 1;
       } catch (error) {
         console.error(`[Reminder] Failed to send review request for booking #${booking.id}:`, error?.message);
       }
@@ -134,6 +138,7 @@ export async function checkAndSendReminders() {
   } catch (err) {
     console.error('[Reminder] Error checking reminders:', err);
   }
+  return stats;
 }
 
 export function initReminderCron(intervalMs = 5 * 60 * 1000) {

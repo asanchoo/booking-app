@@ -2,36 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { db } from '../db/connection.js';
 import { validatePayload } from '../utils/validation.js';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const UPLOADS_DIR = path.resolve(__dirname, '../../uploads/barbers');
-
-// Multer config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `barber-${req.params.id}-${Date.now()}${ext}`);
-  },
-});
-
-const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    if (ALLOWED_MIMES.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Допустимы только JPEG, PNG и WebP файлы'));
-    }
-  },
-});
+import { barberPhotoUpload, replaceBarberPhoto } from '../services/barberPhotoService.js';
 
 const router = Router();
 
@@ -192,32 +163,16 @@ router.delete('/:id', (req, res, next) => {
 
 // POST /:id/photo — upload barber photo
 router.post('/:id/photo', (req, res, next) => {
-  upload.single('photo')(req, res, (uploadErr) => {
+  barberPhotoUpload.single('photo')(req, res, (uploadErr) => {
     if (uploadErr) {
       const err = new Error(uploadErr.message);
       err.status = 400;
       return next(err);
     }
-    if (!req.file) {
-      return res.status(400).json({ message: 'Файл не выбран' });
-    }
     try {
-      // Get old photo path to delete
-      const barber = db.prepare('SELECT photo_url FROM barbers WHERE id = ?').get(req.params.id);
-      if (barber && barber.photo_url && barber.photo_url.startsWith('/uploads/barbers/')) {
-        const oldPath = path.resolve(__dirname, '../..', barber.photo_url.slice(1));
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
-      }
-      const photoUrl = `/uploads/barbers/${req.file.filename}`;
-      db.prepare('UPDATE barbers SET photo_url = ? WHERE id = ?').run(photoUrl, req.params.id);
-      const updated = db
-        .prepare('SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?')
-        .get(req.params.id);
-      res.json(updated);
+      return res.json(replaceBarberPhoto({ barberId: req.params.id, file: req.file }));
     } catch (err) {
-      next(err);
+      return next(err);
     }
   });
 });

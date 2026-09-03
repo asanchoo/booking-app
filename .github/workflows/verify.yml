@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  build-client:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,8 +13,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: client/package-lock.json
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+      - run: npm ci --prefix server
       - run: npm ci --prefix client
+      - run: npm run db:migrate --prefix server
+      - run: npm run db:seed --prefix server
+      - run: npm test --prefix server
       - run: npm run build --prefix client
       - run: node --check server/index.js
       - run: node --check server/src/app.js

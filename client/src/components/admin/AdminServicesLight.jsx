@@ -201,7 +201,7 @@ export default function AdminServicesLight({ onAuthError }) {
           <div className="saas-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="saas-modal-header">
               <h3>{editingService ? 'Редактировать услугу' : 'Новая услуга'}</h3>
-              <button className="saas-icon-btn" onClick={() => setModalOpen(false)}>
+              <button type="button" className="saas-icon-btn" onClick={() => setModalOpen(false)} aria-label="Закрыть окно услуги">
                 <X size={18} />
               </button>
             </div>

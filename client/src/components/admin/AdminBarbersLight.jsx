@@ -265,7 +265,7 @@ export default function AdminBarbersLight({ onAuthError }) {
           <div className="saas-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="saas-modal-header">
               <h3>{editingBarber ? 'Редактировать мастера' : 'Новый мастер'}</h3>
-              <button className="saas-icon-btn" onClick={() => setModalOpen(false)}>
+              <button type="button" className="saas-icon-btn" onClick={() => setModalOpen(false)} aria-label="Закрыть окно мастера">
                 <X size={18} />
               </button>
             </div>

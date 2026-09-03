@@ -1,7 +1,11 @@
-import React from 'react';
-import { Clock, User, Scissors, Phone, X, CheckCircle, AlertCircle, Ban } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CalendarClock, Clock, User, Scissors, Phone, X, CheckCircle, AlertCircle, Ban, Loader2 } from 'lucide-react';
 
-export default function AppointmentDetailsPanel({ booking, onClose }) {
+export default function AppointmentDetailsPanel({ booking, onClose, onReschedule, onCancel }) {
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [actionError, setActionError] = useState('');
+  useEffect(() => { setConfirmCancel(false); setActionError(''); }, [booking?.id]);
   if (!booking) return null;
 
   const startsAt = booking.startsAt || booking.start_time;
@@ -11,6 +15,20 @@ export default function AppointmentDetailsPanel({ booking, onClose }) {
   const sName = booking.serviceName || booking.service_name || 'Услуга';
   const bName = booking.barberName || booking.barber_name || 'Мастер не назначен';
   const status = booking.status || 'confirmed';
+  const canManage = status === 'confirmed' && new Date(startsAt).getTime() > Date.now();
+
+  const cancel = async () => {
+    setCancelling(true);
+    setActionError('');
+    try {
+      await onCancel(booking);
+      setConfirmCancel(false);
+    } catch (error) {
+      setActionError(error.message || 'Не удалось отменить запись');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const formatDateTime = (isoStr) => {
     if (!isoStr) return '';
@@ -126,6 +144,9 @@ export default function AppointmentDetailsPanel({ booking, onClose }) {
             </div>
           </div>
         </div>
+
+        {canManage && <div className="admin-booking-actions-panel"><button onClick={() => onReschedule(booking)}><CalendarClock size={15} /> Перенести</button><button className="danger" onClick={() => setConfirmCancel(true)}><Ban size={15} /> Отменить</button></div>}
+        {confirmCancel && <div className="admin-cancel-confirm"><AlertCircle size={18} /><div><strong>Отменить запись?</strong><p>Клиент получит уведомление в Telegram, если он его привязал.</p><span>{actionError}</span><div><button onClick={() => setConfirmCancel(false)} disabled={cancelling}>Назад</button><button onClick={cancel} disabled={cancelling}>{cancelling ? <Loader2 size={14} className="spin" /> : <Ban size={14} />} Да, отменить</button></div></div></div>}
       </div>
     </aside>
   );

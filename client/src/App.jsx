@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar.jsx';
 import CustomerBookingPage from './pages/CustomerBookingPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
@@ -8,6 +8,7 @@ import MyBookingsPage from './pages/MyBookingsPage.jsx';
 import BarberDashboardPage from './pages/BarberDashboardPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { RefreshCw } from 'lucide-react';
+import AiBookingAssistant from './components/AiBookingAssistant.jsx';
 import './index.css';
 
 // Protected Route specifically for Admin
@@ -78,6 +79,13 @@ function LoginRoute() {
   return <Navigate to="/my-account" replace />;
 }
 
+function PublicAiAssistant() {
+  const { pathname } = useLocation();
+  const { authenticated, role } = useAuth();
+  if (authenticated === null || pathname !== '/' || (authenticated && ['admin', 'barber'].includes(role))) return null;
+  return <AiBookingAssistant />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -119,6 +127,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <PublicAiAssistant />
       </Router>
     </AuthProvider>
   );

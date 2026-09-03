@@ -19,6 +19,8 @@ import settingsRouter from './routes/settings.js';
 import barberPortalRouter from './routes/barberPortal.js';
 import adminReviewsRouter from './routes/adminReviews.js';
 import adminBookingsRouter from './routes/adminBookings.js';
+import aiAssistantRouter from './routes/aiAssistant.js';
+import integrationsRouter from './routes/integrations.js';
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,6 +63,8 @@ app.use('/api/barbers', barbersRouter);
 app.use('/api/services', servicesRouter);
 app.use('/api/slots', slotsRouter);
 app.use('/api/bookings', bookingsRouter);
+app.use('/api/ai', aiAssistantRouter);
+app.use('/api/integrations', integrationsRouter);
 
 // Protected Admin Routes
 app.use('/api/admin/services', requireAuth, adminServicesRouter);
@@ -71,7 +75,7 @@ app.use('/api/admin/bookings', requireAuth, adminBookingsRouter);
 
 if (process.env.NODE_ENV === 'production' && fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
-  app.get('*', (req, res, next) => {
+  app.get(/.*/, (req, res, next) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
     return res.sendFile(path.join(clientDist, 'index.html'));
   });

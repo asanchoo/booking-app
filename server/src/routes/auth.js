@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db/connection.js';
 import { getJwtSecret } from '../config/env.js';
 import { rateLimit } from '../middleware/rateLimit.js';
+import { normalizePhone } from '../utils/phone.js';
 
 const router = Router();
 
@@ -51,10 +52,7 @@ router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Ð
 
   // 2. Try client (by phone â€” normalize digits only)
   const cleanPhone = String(login).replace(/\D/g, '');
-  let phoneVariant = cleanPhone;
-  if (phoneVariant.startsWith('8') && phoneVariant.length === 11) {
-    phoneVariant = '7' + phoneVariant.slice(1);
-  }
+  const phoneVariant = normalizePhone(login);
 
   // Look up client by any common phone variant
   const client = db

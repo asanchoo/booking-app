@@ -8,12 +8,24 @@ import { listClientBookings, cancelBooking, rescheduleBooking } from './bookingS
 import { getAvailableSlots } from './slotService.js';
 import { normalizePhone } from '../utils/phone.js';
 import { createMasterReview, updateTelegramReviewComment } from './reviewService.js';
+import { createTelegramLoginLink } from './telegramLoginService.js';
 
 let botInstance = null;
 
 // In-memory cache for proposed reschedule slots per booking
 const pendingReschedules = new Map();
 const pendingReviewComments = new Map();
+
+function getLinkedPhone(chatId) {
+  return db.prepare('SELECT phone FROM telegram_links WHERE chat_id = ?').get(chatId)?.phone || null;
+}
+
+function getOwnedBooking(chatId, bookingId) {
+  const phone = getLinkedPhone(chatId);
+  if (!phone) return null;
+  const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId);
+  return booking && normalizePhone(booking.client_phone) === normalizePhone(phone) ? booking : null;
+}
 
 export function initBot() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -41,6 +53,14 @@ export function initBot() {
       minute: '2-digit',
     });
     return { dateStr, timeStr };
+  };
+
+  const linkedMenu = (chatId) => {
+    const rows = [[{ text: '📅 Мои записи', callback_data: 'show_my_bookings' }]];
+    try {
+      rows.push([{ text: '🔐 Открыть личный кабинет', url: createTelegramLoginLink(chatId) }]);
+    } catch { /* A Telegram link can exist before the client creates an account. */ }
+    return { inline_keyboard: rows };
   };
 
   // Helper to fetch 3 nearest available slots
@@ -103,6 +123,12 @@ export function initBot() {
   // Helper to render slots choice menu for reschedule
   async function renderRescheduleSlotsMenu(chatId, messageId, bookingId, customPrefixText = '') {
     const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!getOwnedBooking(chatId, bookingId)) {
+      return fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: '❌ Запись не найдена или принадлежит другому клиенту.' }),
+      }).catch(() => {});
+    }
     const booking = db.prepare(`
       SELECT b.id, b.service_id, b.barber_id, s.name as service_name, barb.name as barber_name
       FROM bookings b
@@ -192,12 +218,9 @@ export function initBot() {
 
       return sendTelegramMessage(
         chatId,
-        '✅ Telegram успешно привязан! Теперь вы будете получать уведомления о записях.',
+        '✅ Telegram успешно привязан! Теперь вы будете получать уведомления о записях. Если вы уже создали аккаунт на сайте, личный кабинет откроется без пароля.',
         {
-          reply_markup: {
-            keyboard: [[{ text: 'Мои записи' }]],
-            resize_keyboard: true,
-          },
+          reply_markup: linkedMenu(chatId),
         }
       );
     }
@@ -208,10 +231,7 @@ export function initBot() {
         chatId,
         `Здравствуйте! 👋\n\nВы вошли в бот BarberShop. Нажмите кнопку ниже, чтобы посмотреть свои записи.`,
         {
-          reply_markup: {
-            keyboard: [[{ text: 'Мои записи' }]],
-            resize_keyboard: true,
-          },
+          reply_markup: linkedMenu(chatId),
         }
       );
     } else {
@@ -225,6 +245,17 @@ export function initBot() {
   // Handle "Мои записи" button text
   botInstance.hears('Мои записи', async (ctx) => {
     await showMyBookings(ctx.chat.id);
+  });
+
+  botInstance.hears('Личный кабинет', async (ctx) => {
+    try {
+      const url = createTelegramLoginLink(ctx.chat.id);
+      await sendTelegramMessage(ctx.chat.id, 'Ссылка действует 10 минут и подходит только для одного входа.', {
+        reply_markup: { inline_keyboard: [[{ text: '🔐 Открыть личный кабинет', url }]] },
+      });
+    } catch (error) {
+      await sendTelegramMessage(ctx.chat.id, `Не удалось открыть кабинет: ${error.message}`);
+    }
   });
 
   // The rating is saved immediately; the next regular text message can enrich it with a comment.
@@ -266,6 +297,12 @@ export function initBot() {
     if (!data || !chatId || !messageId) return;
 
     const token = process.env.TELEGRAM_BOT_TOKEN;
+
+    if (data === 'show_my_bookings') {
+      await ctx.answerCallbackQuery().catch(() => {});
+      await showMyBookings(chatId);
+      return;
+    }
 
     // ─── REVIEW FLOW ────────────────────────────────────────────────────────
     if (data.startsWith('review_rate_')) {
@@ -328,6 +365,10 @@ export function initBot() {
     // ─── ATTENDANCE CONFIRMATION ─────────────────────────────────────────────
     else if (data.startsWith('confirm_attend_')) {
       const bookingId = parseInt(data.replace('confirm_attend_', ''), 10);
+      if (!getOwnedBooking(chatId, bookingId)) {
+        await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
+        return;
+      }
       const nowIso = new Date().toISOString();
       db.prepare(`UPDATE bookings SET client_confirmed_at = ? WHERE id = ?`).run(nowIso, bookingId);
 
@@ -346,7 +387,10 @@ export function initBot() {
     else if (data.startsWith('cancel_ask_')) {
       const bookingId = parseInt(data.replace('cancel_ask_', ''), 10);
       const link = db.prepare(`SELECT phone FROM telegram_links WHERE chat_id = ?`).get(chatId);
-      if (!link) return;
+      if (!link || !getOwnedBooking(chatId, bookingId)) {
+        await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
+        return;
+      }
 
       const booking = db.prepare(`
         SELECT b.id, b.starts_at, s.name as service_name, barb.name as barber_name
@@ -389,7 +433,10 @@ export function initBot() {
     } else if (data.startsWith('cancel_confirm_')) {
       const bookingId = parseInt(data.replace('cancel_confirm_', ''), 10);
       const link = db.prepare(`SELECT phone FROM telegram_links WHERE chat_id = ?`).get(chatId);
-      if (!link) return;
+      if (!link || !getOwnedBooking(chatId, bookingId)) {
+        await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
+        return;
+      }
 
       const success = cancelBooking(bookingId);
       if (success) {
@@ -415,6 +462,10 @@ export function initBot() {
       }
     } else if (data.startsWith('cancel_back_')) {
       const bookingId = parseInt(data.replace('cancel_back_', ''), 10);
+      if (!getOwnedBooking(chatId, bookingId)) {
+        await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
+        return;
+      }
       const booking = db.prepare(`
         SELECT b.id, b.starts_at, s.name as service_name, barb.name as barber_name
         FROM bookings b
@@ -459,6 +510,10 @@ export function initBot() {
       const parts = data.split('_');
       const bookingId = parseInt(parts[2], 10);
       const slotIdx = parseInt(parts[3], 10);
+      if (!getOwnedBooking(chatId, bookingId)) {
+        await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
+        return;
+      }
 
       let topSlots = pendingReschedules.get(bookingId);
       if (!topSlots) {
@@ -507,6 +562,10 @@ export function initBot() {
       const parts = data.split('_');
       const bookingId = parseInt(parts[2], 10);
       const slotIdx = parseInt(parts[3], 10);
+      if (!getOwnedBooking(chatId, bookingId)) {
+        await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
+        return;
+      }
 
       let topSlots = pendingReschedules.get(bookingId);
       if (!topSlots) {
@@ -561,9 +620,20 @@ export function initBot() {
     }
   });
 
-  botInstance.startPolling();
-  console.log('[TelegramBot] Polling started successfully.');
+  const mode = String(process.env.TELEGRAM_MODE || 'polling').toLowerCase();
+  if (mode === 'polling') {
+    botInstance.startPolling();
+    console.log('[TelegramBot] Polling started successfully.');
+  } else {
+    console.log('[TelegramBot] Webhook mode initialized.');
+  }
   return botInstance;
+}
+
+export async function processTelegramUpdate(update) {
+  const bot = initBot();
+  if (!bot) throw new Error('Telegram bot is not configured');
+  await bot.processUpdate(update);
 }
 
 export async function sendTelegramMessage(chatId, text, options = {}) {
