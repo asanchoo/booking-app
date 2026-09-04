@@ -1,4 +1,6 @@
-const target = String(process.env.DATABASE_URL || '').trim()
+import { getDatabaseUrl } from './databaseUrl.js';
+
+const target = getDatabaseUrl()
   ? './migratePostgres.js'
   : './migrate.js';
 

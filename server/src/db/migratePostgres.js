@@ -2,9 +2,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+import { getDatabaseUrl } from './databaseUrl.js';
 
-const databaseUrl = String(process.env.DATABASE_URL || '').trim();
-if (!databaseUrl) throw new Error('DATABASE_URL is required for Postgres migration.');
+const databaseUrl = getDatabaseUrl();
+if (!databaseUrl) throw new Error('A Postgres connection URL is required for migration.');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const schema = await fs.readFile(path.join(here, 'postgres', 'schema.sql'), 'utf8');

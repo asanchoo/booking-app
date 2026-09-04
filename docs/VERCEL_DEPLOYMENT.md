@@ -38,7 +38,8 @@ AI_DAILY_REQUEST_LIMIT=100
 AI_TIMEOUT_MS=60000
 ```
 
-Neon supplies `DATABASE_URL`. Vercel Blob supplies `BLOB_READ_WRITE_TOKEN`.
+Neon supplies `DATABASE_URL` (or `STORAGE_URL` when the `STORAGE` prefix is
+selected). Vercel Blob supplies `BLOB_READ_WRITE_TOKEN`.
 Both must be connected to Production and Preview environments.
 
 ## Deployment order
