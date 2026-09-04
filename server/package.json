@@ -14,8 +14,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
-    "better-sqlite3": "^11.9.0",
+    "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
@@ -25,5 +24,8 @@
     "node-telegram-bot-api": "^2.1.0",
     "pg": "^8.16.3",
     "@vercel/blob": "^2.0.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.9.0"
   }
 }

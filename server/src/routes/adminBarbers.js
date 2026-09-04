@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { database } from '../db/database.js';
 import { validatePayload } from '../utils/validation.js';
 import { barberPhotoUpload, replaceBarberPhoto } from '../services/barberPhotoService.js';
