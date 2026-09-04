@@ -1,8 +1,17 @@
 export function getDatabaseUrl() {
-  return String(
+  const configured = String(
     process.env.DATABASE_URL
     || process.env.STORAGE_URL
     || process.env.POSTGRES_URL
     || '',
   ).trim();
+  if (configured) return configured;
+
+  // Marketplace integrations can prepend a user-selected prefix. Detect the
+  // Postgres URL by protocol so STORAGE_DATABASE_URL and similar names work.
+  const discovered = Object.entries(process.env).find(([name, value]) => (
+    /(?:DATABASE|POSTGRES|NEON).*URL|URL.*(?:DATABASE|POSTGRES|NEON)/i.test(name)
+    && /^postgres(?:ql)?:\/\//i.test(String(value || '').trim())
+  ));
+  return String(discovered?.[1] || '').trim();
 }
