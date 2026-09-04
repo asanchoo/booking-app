@@ -15,3 +15,14 @@ export function getDatabaseUrl() {
   ));
   return String(discovered?.[1] || '').trim();
 }
+
+export function getPostgresConnectionConfig(databaseUrl) {
+  const parsed = new URL(databaseUrl);
+  const sslMode = parsed.searchParams.get('sslmode')?.toLowerCase();
+  if (sslMode === 'disable') return { connectionString: databaseUrl, ssl: false };
+
+  if (['prefer', 'require', 'verify-ca'].includes(sslMode)) {
+    parsed.searchParams.set('sslmode', 'verify-full');
+  }
+  return { connectionString: parsed.toString() };
+}

@@ -2,6 +2,7 @@
   "name": "booking-app",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "db:migrate": "npm run db:migrate --prefix server",
     "db:seed": "npm run db:seed --prefix server",

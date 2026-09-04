@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { getDatabaseUrl } from './databaseUrl.js';
+import { getDatabaseUrl, getPostgresConnectionConfig } from './databaseUrl.js';
 
 // PostgreSQL returns int8/numeric values as strings by default. All identifiers,
 // counters, prices and ratings in this application stay within JavaScript's safe
@@ -12,11 +12,10 @@ export const databaseDialect = databaseUrl ? 'postgres' : 'sqlite';
 
 const pool = databaseUrl
   ? new pg.Pool({
-      connectionString: databaseUrl,
+      ...getPostgresConnectionConfig(databaseUrl),
       max: Number(process.env.DATABASE_POOL_SIZE || 5),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
-      ssl: databaseUrl.includes('sslmode=disable') ? false : { rejectUnauthorized: false },
     })
   : null;
 const sqlite = pool ? null : (await import('./connection.js')).db;
