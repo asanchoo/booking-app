@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import { listClientBookings, cancelBooking } from '../services/bookingService.js';
 import { requireClientAuth } from '../middleware/requireClientAuth.js';
 import { assertBookingCanBeChanged } from '../utils/bookingPolicy.js';
@@ -8,9 +8,9 @@ import { createMasterReview } from '../services/reviewService.js';
 const router = Router();
 
 // GET /api/my-bookings
-router.get('/', requireClientAuth, (req, res, next) => {
+router.get('/', requireClientAuth, async (req, res, next) => {
   try {
-    const bookings = listClientBookings(req.clientPhone);
+    const bookings = await listClientBookings(req.clientPhone);
     res.json(bookings);
   } catch (error) {
     next(error);
@@ -18,7 +18,7 @@ router.get('/', requireClientAuth, (req, res, next) => {
 });
 
 // POST /api/my-bookings/:id/cancel
-router.post('/:id/cancel', requireClientAuth, (req, res, next) => {
+router.post('/:id/cancel', requireClientAuth, async (req, res, next) => {
   try {
     const bookingId = parseInt(req.params.id, 10);
     if (!Number.isFinite(bookingId) || bookingId <= 0) {
@@ -26,13 +26,11 @@ router.post('/:id/cancel', requireClientAuth, (req, res, next) => {
     }
 
     // Fetch the booking
-    const booking = db
-      .prepare(`
+    const booking = await database.one(`
         SELECT b.id, b.client_phone, b.status, b.starts_at
         FROM bookings b
         WHERE b.id = ?
-      `)
-      .get(bookingId);
+      `, [bookingId]);
 
     if (!booking) {
       return res.status(404).json({ error: 'Запись не найдена' });
@@ -52,19 +50,19 @@ router.post('/:id/cancel', requireClientAuth, (req, res, next) => {
 
     assertBookingCanBeChanged(booking.starts_at);
 
-    cancelBooking(bookingId);
+    await cancelBooking(bookingId);
     return res.json({ success: true });
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/:id/review', requireClientAuth, (req, res, next) => {
+router.post('/:id/review', requireClientAuth, async (req, res, next) => {
   try {
     const bookingId = Number.parseInt(req.params.id, 10);
     const rating = Number(req.body?.rating);
     const comment = String(req.body?.comment || '').trim().slice(0, 500);
-    const review = createMasterReview({ bookingId, clientPhone: req.clientPhone, rating, comment, source: 'website' });
+    const review = await createMasterReview({ bookingId, clientPhone: req.clientPhone, rating, comment, source: 'website' });
     return res.status(201).json({ success: true, review });
   } catch (error) {
     return next(error);

@@ -4,7 +4,7 @@ import { HttpError } from '../utils/httpError.js';
 
 const router = Router();
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const serviceId = Number(req.query.serviceId);
     if (!Number.isInteger(serviceId) || serviceId <= 0) {
@@ -16,7 +16,7 @@ router.get('/', (req, res, next) => {
       throw new HttpError(400, 'barberId query parameter is required');
     }
 
-    const result = getAvailableSlots(serviceId, barberId, req.query.from, req.query.to);
+    const result = await getAvailableSlots(serviceId, barberId, req.query.from, req.query.to);
     res.json(result);
   } catch (error) {
     next(error);

@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-  const services = db
-    .prepare(
-      `
+router.get('/', async (req, res, next) => {
+  try {
+    const services = await database.all(`
       SELECT
         id,
         name,
@@ -16,11 +15,11 @@ router.get('/', (req, res) => {
       FROM services
       WHERE is_active = 1
       ORDER BY id ASC
-    `,
-    )
-    .all();
-
-  res.json(services);
+    `);
+    res.json(services);
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

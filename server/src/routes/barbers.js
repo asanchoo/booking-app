@@ -1,12 +1,16 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-  const query = db
-    .prepare(
-      `
+router.get('/', async (req, res, next) => {
+  try {
+    const serviceId = Number(req.query.serviceId);
+    if (req.query.serviceId && (!Number.isInteger(serviceId) || serviceId <= 0)) {
+      return res.status(400).json({ message: 'Некорректная услуга' });
+    }
+
+    const barbers = (await database.all(`
       SELECT
         b.id,
         b.name,
@@ -35,20 +39,15 @@ router.get('/', (req, res) => {
       WHERE b.is_active = 1
       GROUP BY b.id
       ORDER BY b.sort_order ASC
-    `,
-    );
-
-  const serviceId = Number(req.query.serviceId);
-  if (req.query.serviceId && (!Number.isInteger(serviceId) || serviceId <= 0)) {
-    return res.status(400).json({ message: 'Некорректная услуга' });
+    `, req.query.serviceId ? [serviceId] : [])).map((barber) => ({
+      ...barber,
+      reviewCount: Number(barber.reviewCount),
+      latestReviewAuthor: String(barber.latestReviewAuthor || '').trim().split(/\s+/)[0] || null,
+    }));
+    res.json(barbers);
+  } catch (error) {
+    next(error);
   }
-
-  const barbers = query.all(...(req.query.serviceId ? [serviceId] : [])).map((barber) => ({
-    ...barber,
-    latestReviewAuthor: String(barber.latestReviewAuthor || '').trim().split(/\s+/)[0] || null,
-  }));
-
-  res.json(barbers);
 });
 
 export default router;

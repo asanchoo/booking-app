@@ -1,103 +1,58 @@
-import { db } from './connection.js';
+import { transaction, closeDatabase } from './database.js';
 
 const services = [
-  {
-    name: 'Стрижка',
-    duration_minutes: 30,
-    price_cents: 250000,
-  },
-  {
-    name: 'Борода',
-    duration_minutes: 20,
-    price_cents: 150000,
-  },
-  {
-    name: 'Стрижка + борода',
-    duration_minutes: 45,
-    price_cents: 350000,
-  },
+  { name: 'Стрижка', duration: 30, price: 250000 },
+  { name: 'Борода', duration: 20, price: 150000 },
+  { name: 'Стрижка + борода', duration: 45, price: 350000 },
 ];
-
 const settings = [
-  { key: 'work_start', value: '09:00' },
-  { key: 'work_end', value: '18:00' },
-  { key: 'slot_step_minutes', value: '30' },
-  { key: 'work_days', value: '1,2,3,4,5' },
-  { key: 'timezone', value: 'Asia/Almaty' },
+  ['work_start', '09:00'], ['work_end', '18:00'], ['slot_step_minutes', '30'],
+  ['work_days', '1,2,3,4,5'], ['timezone', 'Asia/Almaty'],
 ];
+const masters = ['Асанали', 'Диас', 'Султан', 'Арман'];
 
-const barbers = [
-  { name: 'Асанали', photo_url: null, sort_order: 1 },
-  { name: 'Диас', photo_url: null, sort_order: 2 },
-  { name: 'Султан', photo_url: null, sort_order: 3 },
-  { name: 'Арман', photo_url: null, sort_order: 4 },
-];
-
-const insertService = db.prepare(`
-  INSERT INTO services (name, duration_minutes, price_cents, is_active)
-  VALUES (@name, @duration_minutes, @price_cents, 1)
-`);
-
-const insertBarber = db.prepare(`
-  INSERT INTO barbers (name, photo_url, is_active, sort_order)
-  VALUES (@name, @photo_url, 1, @sort_order)
-`);
-
-const insertSetting = db.prepare(`
-  INSERT INTO business_settings (key, value)
-  VALUES (@key, @value)
-`);
-
-const seed = db.transaction(() => {
-  const serviceCount = db.prepare('SELECT COUNT(*) AS count FROM services').get().count;
+await transaction(async (database) => {
+  const serviceCount = Number((await database.one('SELECT COUNT(*) AS count FROM services'))?.count || 0);
   if (serviceCount === 0) {
     for (const service of services) {
-      insertService.run(service);
+      await database.run(
+        `INSERT INTO services (name, duration_minutes, price_cents, is_active) VALUES (?, ?, ?, 1)`,
+        [service.name, service.duration, service.price],
+      );
     }
     console.log(`Seeded ${services.length} services.`);
-  } else {
-    console.log(`Services already exist (${serviceCount}), skipping.`);
-  }
+  } else console.log(`Services already exist (${serviceCount}), skipping.`);
 
-  const barberCount = db.prepare('SELECT COUNT(*) AS count FROM barbers').get().count;
-  if (barberCount === 0) {
-    for (const barber of barbers) {
-      insertBarber.run(barber);
+  const masterCount = Number((await database.one('SELECT COUNT(*) AS count FROM barbers'))?.count || 0);
+  if (masterCount === 0) {
+    for (const [index, name] of masters.entries()) {
+      await database.run(
+        `INSERT INTO barbers (name, photo_url, is_active, sort_order) VALUES (?, NULL, 1, ?)`,
+        [name, index + 1],
+      );
     }
-    console.log(`Seeded ${barbers.length} barbers.`);
-  } else {
-    console.log(`Barbers already exist (${barberCount}), skipping.`);
-  }
+    console.log(`Seeded ${masters.length} masters.`);
+  } else console.log(`Masters already exist (${masterCount}), skipping.`);
 
-  const settingsCount = db.prepare('SELECT COUNT(*) AS count FROM business_settings').get().count;
+  const settingsCount = Number((await database.one('SELECT COUNT(*) AS count FROM business_settings'))?.count || 0);
   if (settingsCount === 0) {
-    for (const setting of settings) {
-      insertSetting.run(setting);
+    for (const [key, value] of settings) {
+      await database.run(`INSERT INTO business_settings (key, value) VALUES (?, ?)`, [key, value]);
     }
     console.log(`Seeded ${settings.length} business settings.`);
-  } else {
-    console.log(`Business settings already exist (${settingsCount}), skipping.`);
-  }
+  } else console.log(`Business settings already exist (${settingsCount}), skipping.`);
 
-  // Migration 012 may run before a fresh database has been seeded. In that
-  // case its compatibility INSERT has no rows to connect, leaving the public
-  // catalog without any masters and making a clean CI/deployment differ from
-  // an upgraded local database.
-  const serviceMasterCount = db.prepare('SELECT COUNT(*) AS count FROM service_masters').get().count;
-  if (serviceMasterCount === 0) {
-    const result = db.prepare(`
-      INSERT OR IGNORE INTO service_masters (service_id, master_id)
-      SELECT services.id, barbers.id
-      FROM services
-      CROSS JOIN barbers
+  const assignmentCount = Number((await database.one('SELECT COUNT(*) AS count FROM service_masters'))?.count || 0);
+  if (assignmentCount === 0) {
+    const result = await database.run(`
+      INSERT INTO service_masters (service_id, master_id)
+      SELECT services.id, barbers.id FROM services CROSS JOIN barbers
       WHERE services.is_active = 1 AND barbers.is_active = 1
-    `).run();
+      ON CONFLICT (service_id, master_id) DO NOTHING
+    `);
     console.log(`Seeded ${result.changes} service-master assignments.`);
-  } else {
-    console.log(`Service-master assignments already exist (${serviceMasterCount}), skipping.`);
-  }
+  } else console.log(`Service-master assignments already exist (${assignmentCount}), skipping.`);
 });
 
-seed();
-
 console.log('Seed complete.');
+await closeDatabase();

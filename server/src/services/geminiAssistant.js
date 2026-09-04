@@ -112,9 +112,9 @@ export async function runGeminiAssistant({ messages }) {
     const responseParts = [];
     for (const call of calls) {
       const args = call.args || {};
-      const result = executeAiTool(call.name, args);
+      const result = await executeAiTool(call.name, args);
       toolsUsed.push(call.name);
-      actions.splice(0, actions.length, ...actionsForAiTool(call.name, args, result));
+      actions.splice(0, actions.length, ...await actionsForAiTool(call.name, args, result));
       const functionResponse = { name: call.name, response: { result } };
       if (call.id) functionResponse.id = call.id;
       responseParts.push({ functionResponse });

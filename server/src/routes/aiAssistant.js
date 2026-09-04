@@ -35,10 +35,10 @@ router.post('/chat', chatLimit, async (req, res, next) => {
   try {
     const messages = validateMessages(req.body?.messages);
     const runtime = getAiRuntimeStatus();
-    const verified = resolveVerifiedBookingTurn({ messages, context: req.body?.context });
+    const verified = await resolveVerifiedBookingTurn({ messages, context: req.body?.context });
     if (verified) return res.json({ ...verified, provider: runtime.provider, fallback: false, verified: true });
     const dailyLimit = Math.max(1, Number(process.env.AI_DAILY_REQUEST_LIMIT) || 100);
-    if (['openai', 'gemini'].includes(runtime.provider) && getExternalAiRequestsToday() >= dailyLimit) {
+    if (['openai', 'gemini'].includes(runtime.provider) && await getExternalAiRequestsToday() >= dailyLimit) {
       const result = await runAiAssistant({ messages, clientIdentifier: req.ip, forceDemo: true });
       return res.json({ ...result, notice: 'Дневной лимит модели достигнут, включён демо-режим.' });
     }
@@ -48,10 +48,10 @@ router.post('/chat', chatLimit, async (req, res, next) => {
   }
 });
 
-router.post('/book', bookingLimit, (req, res, next) => {
+router.post('/book', bookingLimit, async (req, res, next) => {
   try {
     if (req.body?.confirmed !== true) throw new HttpError(400, 'Перед записью необходимо явное подтверждение');
-    const booking = createBooking({
+    const booking = await createBooking({
       serviceId: Number(req.body.serviceId),
       barberId: Number(req.body.masterId),
       startsAt: req.body.startsAt,
@@ -60,7 +60,7 @@ router.post('/book', bookingLimit, (req, res, next) => {
       source: 'online',
       aiAssisted: true,
     });
-    const telegram = createTelegramLink(booking.clientPhone);
+    const telegram = await createTelegramLink(booking.clientPhone);
     return res.status(201).json({ ...booking, telegram });
   } catch (error) {
     return next(error);

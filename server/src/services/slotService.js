@@ -1,4 +1,4 @@
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import {
   addDays,
   addMinutesToDateTime,
@@ -14,57 +14,43 @@ import {
 import { getBusinessSettings, getWorkDays } from './settings.js';
 import { HttpError } from '../utils/httpError.js';
 
-function getActiveService(serviceId) {
-  return db
-    .prepare(
-      `
+async function getActiveService(serviceId) {
+  return database.one(`
       SELECT id, name, duration_minutes AS durationMinutes, price_cents AS priceCents
       FROM services
       WHERE id = ? AND is_active = 1
-    `,
-    )
-    .get(serviceId);
+    `, [serviceId]);
 }
 
-function getActiveBarber(barberId) {
-  return db
-    .prepare(
-      `
+async function getActiveBarber(barberId) {
+  return database.one(`
       SELECT id, name
       FROM barbers
       WHERE id = ? AND is_active = 1
-    `,
-    )
-    .get(barberId);
+    `, [barberId]);
 }
 
-function isMasterAssignedToService(serviceId, barberId) {
-  return db
-    .prepare('SELECT 1 FROM service_masters WHERE service_id = ? AND master_id = ?')
-    .get(serviceId, barberId);
+async function isMasterAssignedToService(serviceId, barberId) {
+  return database.one('SELECT 1 FROM service_masters WHERE service_id = ? AND master_id = ?', [serviceId, barberId]);
 }
 
-function getConfirmedBookings(barberId, fromDateTime, toDateTime) {
-  return db
-    .prepare(
-      `
+async function getConfirmedBookings(barberId, fromDateTime, toDateTime) {
+  return database.all(`
       SELECT starts_at AS startsAt, ends_at AS endsAt
       FROM bookings
       WHERE status = 'confirmed'
         AND barber_id = ?
         AND starts_at < ?
         AND ends_at > ?
-    `,
-    )
-    .all(barberId, toDateTime, fromDateTime);
+    `, [barberId, toDateTime, fromDateTime]);
 }
 
-function getMasterTimeBlocks(barberId, fromDateTime, toDateTime) {
-  return db.prepare(`
+async function getMasterTimeBlocks(barberId, fromDateTime, toDateTime) {
+  return database.all(`
     SELECT starts_at AS startsAt, ends_at AS endsAt
     FROM master_time_blocks
     WHERE master_id = ? AND starts_at < ? AND ends_at > ?
-  `).all(barberId, toDateTime, fromDateTime);
+  `, [barberId, toDateTime, fromDateTime]);
 }
 
 function generateDaySlots(date, settings, durationMinutes) {
@@ -106,18 +92,18 @@ function generateDaySlots(date, settings, durationMinutes) {
   return slots;
 }
 
-export function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
-  const service = getActiveService(serviceId);
+export async function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
+  const service = await getActiveService(serviceId);
   if (!service) {
     throw new HttpError(404, 'Service not found');
   }
 
-  const barber = getActiveBarber(barberId);
+  const barber = await getActiveBarber(barberId);
   if (!barber) {
     throw new HttpError(404, 'Barber not found');
   }
 
-  if (!isMasterAssignedToService(service.id, barber.id)) {
+  if (!await isMasterAssignedToService(service.id, barber.id)) {
     throw new HttpError(400, 'Master is not available for selected service');
   }
 
@@ -137,12 +123,14 @@ export function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
   today.setHours(0, 0, 0, 0);
   const rangeStart = fromDate < today ? today : fromDate;
 
-  const settings = getBusinessSettings();
+  const settings = await getBusinessSettings();
   const now = formatDateTime(new Date());
   const rangeEndDateTime = buildDateTime(toDate, settings.work_end);
   const rangeStartDateTime = buildDateTime(rangeStart, settings.work_start);
-  const existingBookings = getConfirmedBookings(barber.id, rangeStartDateTime, rangeEndDateTime);
-  const timeBlocks = getMasterTimeBlocks(barber.id, rangeStartDateTime, rangeEndDateTime);
+  const [existingBookings, timeBlocks] = await Promise.all([
+    getConfirmedBookings(barber.id, rangeStartDateTime, rangeEndDateTime),
+    getMasterTimeBlocks(barber.id, rangeStartDateTime, rangeEndDateTime),
+  ]);
 
   const slots = [];
 

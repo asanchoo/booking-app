@@ -1,4 +1,4 @@
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import { sendTelegramMessage } from './telegramService.js';
 
 export async function checkAndSendReminders() {
@@ -17,8 +17,7 @@ export async function checkAndSendReminders() {
     const max1h = nowMs + 70 * 60 * 1000;
 
     // 1. Fetch upcoming confirmed bookings that might need reminders
-    const candidateBookings = db
-      .prepare(`
+    const candidateBookings = await database.all(`
         SELECT 
           b.id,
           b.client_phone,
@@ -32,8 +31,7 @@ export async function checkAndSendReminders() {
         LEFT JOIN barbers barb ON b.barber_id = barb.id
         WHERE b.status = 'confirmed'
           AND (b.reminder_3h_sent = 0 OR b.reminder_1h_sent = 0)
-      `)
-      .all();
+      `);
 
     for (const bk of candidateBookings) {
       const startsAtDate = new Date(bk.starts_at);
@@ -49,9 +47,7 @@ export async function checkAndSendReminders() {
       // Check 3h reminder
       if (bk.reminder_3h_sent === 0 && startsAtMs >= min3h && startsAtMs <= max3h) {
         // Find telegram chat_id
-        const link = db
-          .prepare(`SELECT chat_id FROM telegram_links WHERE phone = ?`)
-          .get(bk.client_phone);
+        const link = await database.one(`SELECT chat_id FROM telegram_links WHERE phone = ?`, [bk.client_phone]);
 
         if (link && link.chat_id) {
           const text = `⏰ Напоминание: запись на ${bk.service_name} к ${barberName} сегодня в ${timeStr} (через 3 часа)`;
@@ -63,15 +59,13 @@ export async function checkAndSendReminders() {
           }
         }
 
-        db.prepare(`UPDATE bookings SET reminder_3h_sent = 1 WHERE id = ?`).run(bk.id);
+        await database.run(`UPDATE bookings SET reminder_3h_sent = 1 WHERE id = ?`, [bk.id]);
       }
 
       // Check 1h reminder
       if (bk.reminder_1h_sent === 0 && startsAtMs >= min1h && startsAtMs <= max1h) {
         // Find telegram chat_id
-        const link = db
-          .prepare(`SELECT chat_id FROM telegram_links WHERE phone = ?`)
-          .get(bk.client_phone);
+        const link = await database.one(`SELECT chat_id FROM telegram_links WHERE phone = ?`, [bk.client_phone]);
 
         if (link && link.chat_id) {
           const text = `⏰ Напоминание: запись на ${bk.service_name} к ${barberName} сегодня в ${timeStr} (через 1 час). Пожалуйста, подтвердите ваш визит:`;
@@ -92,13 +86,13 @@ export async function checkAndSendReminders() {
           }
         }
 
-        db.prepare(`UPDATE bookings SET reminder_1h_sent = 1 WHERE id = ?`).run(bk.id);
+        await database.run(`UPDATE bookings SET reminder_1h_sent = 1 WHERE id = ?`, [bk.id]);
       }
     }
 
     // Ask for feedback only after a master has confirmed the visit and the service has ended.
     // The seven-day boundary avoids messaging clients about old records after a deployment.
-    const reviewCandidates = db.prepare(`
+    const reviewCandidates = await database.all(`
       SELECT b.id, b.client_phone, b.ends_at,
         s.name AS service_name, barb.name AS barber_name
       FROM bookings b
@@ -108,14 +102,14 @@ export async function checkAndSendReminders() {
         AND b.attendance_status = 'attended'
         AND b.review_request_sent_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM barber_reviews r WHERE r.booking_id = b.id)
-    `).all();
+    `);
 
     const oldestEligibleMs = nowMs - 7 * 24 * 60 * 60 * 1000;
     for (const booking of reviewCandidates) {
       const endsAtMs = new Date(booking.ends_at).getTime();
       if (!Number.isFinite(endsAtMs) || endsAtMs > nowMs || endsAtMs < oldestEligibleMs) continue;
 
-      const link = db.prepare('SELECT chat_id FROM telegram_links WHERE phone = ?').get(booking.client_phone);
+      const link = await database.one('SELECT chat_id FROM telegram_links WHERE phone = ?', [booking.client_phone]);
       if (!link?.chat_id) continue;
 
       const text = `✨ Спасибо за визит!\n\nКак вам услуга «${booking.service_name}» у мастера ${booking.barber_name}? Оцените одним нажатием — это займёт несколько секунд.`;
@@ -128,8 +122,10 @@ export async function checkAndSendReminders() {
             }))],
           },
         });
-        db.prepare(`UPDATE bookings SET review_request_sent_at = ? WHERE id = ?`)
-          .run(new Date().toISOString(), booking.id);
+        await database.run(`UPDATE bookings SET review_request_sent_at = ? WHERE id = ?`, [
+          new Date().toISOString(),
+          booking.id,
+        ]);
         stats.reviewRequests += 1;
       } catch (error) {
         console.error(`[Reminder] Failed to send review request for booking #${booking.id}:`, error?.message);

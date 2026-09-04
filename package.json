@@ -7,6 +7,7 @@
     "db:seed": "npm run db:seed --prefix server",
     "db:setup": "npm run db:setup --prefix server",
     "dev": "npm run dev --prefix server",
-    "start": "npm run start --prefix server"
+    "start": "npm run start --prefix server",
+    "vercel-build": "npm run db:setup --prefix server && npm run build --prefix client"
   }
 }

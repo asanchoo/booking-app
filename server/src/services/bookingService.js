@@ -1,4 +1,4 @@
-import { db } from '../db/connection.js';
+import { database, transaction } from '../db/database.js';
 import { addMinutesToDateTime, overlaps, parseDateTimeParam } from '../utils/datetime.js';
 import { HttpError } from '../utils/httpError.js';
 import { assertBookingCanBeChanged } from '../utils/bookingPolicy.js';
@@ -27,66 +27,53 @@ function mapBooking(row) {
   };
 }
 
-function getActiveService(serviceId) {
-  return db
-    .prepare(
-      `
+async function getActiveService(serviceId, client = database) {
+  return client.one(`
       SELECT id, name, duration_minutes AS durationMinutes
       FROM services
       WHERE id = ? AND is_active = 1
-    `,
-    )
-    .get(serviceId);
+    `, [serviceId]);
 }
 
-function getActiveBarber(barberId) {
-  return db
-    .prepare(
-      `
+async function getActiveBarber(barberId, client = database) {
+  return client.one(`
       SELECT id, name
       FROM barbers
       WHERE id = ? AND is_active = 1
-    `,
-    )
-    .get(barberId);
+    `, [barberId]);
 }
 
-function isMasterAssignedToService(serviceId, barberId) {
-  return db
-    .prepare('SELECT 1 FROM service_masters WHERE service_id = ? AND master_id = ?')
-    .get(serviceId, barberId);
+async function isMasterAssignedToService(serviceId, barberId, client = database) {
+  return client.one('SELECT 1 FROM service_masters WHERE service_id = ? AND master_id = ?', [serviceId, barberId]);
 }
 
-function findOverlappingBooking(barberId, startsAt, endsAt) {
-  return db
-    .prepare(
-      `
+async function findOverlappingBooking(barberId, startsAt, endsAt, client = database, excludedId = null) {
+  const exclusionSql = excludedId === null ? '' : 'AND id != ?';
+  const params = excludedId === null
+    ? [barberId, endsAt, startsAt]
+    : [barberId, excludedId, endsAt, startsAt];
+  return client.one(`
       SELECT id
       FROM bookings
       WHERE status = 'confirmed'
         AND barber_id = ?
+        ${exclusionSql}
         AND starts_at < ?
         AND ends_at > ?
       LIMIT 1
-    `,
-    )
-    .get(barberId, endsAt, startsAt);
+    `, params);
 }
 
-function findOverlappingTimeBlock(barberId, startsAt, endsAt) {
-  return db.prepare(`
+async function findOverlappingTimeBlock(barberId, startsAt, endsAt, client = database) {
+  return client.one(`
     SELECT id FROM master_time_blocks
     WHERE master_id = ? AND starts_at < ? AND ends_at > ?
     LIMIT 1
-  `).get(barberId, endsAt, startsAt);
+  `, [barberId, endsAt, startsAt]);
 }
 
-const insertBooking = db.prepare(`
-  INSERT INTO bookings (service_id, barber_id, client_name, client_phone, starts_at, ends_at, status, booking_source, ai_assisted)
-  VALUES (@serviceId, @barberId, @clientName, @clientPhone, @startsAt, @endsAt, 'confirmed', @bookingSource, @aiAssisted)
-`);
-
-const selectBookingById = db.prepare(`
+async function selectBookingById(bookingId, client = database) {
+  return client.one(`
   SELECT
     b.id,
     b.service_id AS serviceId,
@@ -109,12 +96,11 @@ const selectBookingById = db.prepare(`
   LEFT JOIN barbers br ON br.id = b.barber_id
   LEFT JOIN client_ratings cr ON cr.phone = b.client_phone
   WHERE b.id = ?
-`);
+`, [bookingId]);
+}
 
-export function listBookings() {
-  const rows = db
-    .prepare(
-      `
+export async function listBookings() {
+  const rows = await database.all(`
       SELECT
         b.id,
         b.service_id AS serviceId,
@@ -137,21 +123,17 @@ export function listBookings() {
       LEFT JOIN barbers br ON br.id = b.barber_id
       LEFT JOIN client_ratings cr ON cr.phone = b.client_phone
       ORDER BY b.starts_at ASC
-    `,
-    )
-    .all();
+    `);
 
   return rows.map(mapBooking);
 }
 
-export function listClientBookings(clientPhone) {
+export async function listClientBookings(clientPhone) {
   // Normalize phone for comparison or search with variants (e.g. 77011234567, +7 701 123 45 67, 87011234567)
   const cleanDigits = String(clientPhone).replace(/\D/g, '');
   const last10 = cleanDigits.slice(-10);
 
-  const rows = db
-    .prepare(
-      `
+  const rows = await database.all(`
       SELECT
         b.id,
         b.service_id AS serviceId,
@@ -180,9 +162,7 @@ export function listClientBookings(clientPhone) {
       WHERE replace(replace(replace(replace(replace(b.client_phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?
          OR b.client_phone LIKE ?
       ORDER BY b.starts_at DESC
-    `,
-    )
-    .all(`%${last10}`, `%${last10}%`);
+    `, [`%${last10}`, `%${last10}%`]);
 
   return rows.map((row) => ({
     ...mapBooking(row),
@@ -193,7 +173,7 @@ export function listClientBookings(clientPhone) {
   }));
 }
 
-export function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online', aiAssisted = false }) {
+export async function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online', aiAssisted = false }) {
   if (!Number.isInteger(serviceId) || serviceId <= 0) {
     throw new HttpError(400, 'serviceId must be a positive integer');
   }
@@ -223,17 +203,17 @@ export function createBooking({ serviceId, barberId, startsAt, clientName, clien
     throw new HttpError(400, 'clientPhone is required');
   }
 
-  const service = getActiveService(serviceId);
+  const service = await getActiveService(serviceId);
   if (!service) {
     throw new HttpError(404, 'Service not found');
   }
 
-  const barber = getActiveBarber(barberId);
+  const barber = await getActiveBarber(barberId);
   if (!barber) {
     throw new HttpError(400, 'Barber not found');
   }
 
-  if (!isMasterAssignedToService(service.id, barber.id)) {
+  if (!await isMasterAssignedToService(service.id, barber.id)) {
     throw new HttpError(400, 'Master is not available for selected service');
   }
 
@@ -242,40 +222,34 @@ export function createBooking({ serviceId, barberId, startsAt, clientName, clien
     throw new HttpError(400, 'Invalid startsAt value');
   }
 
-  const create = db.transaction(() => {
-    if (findOverlappingTimeBlock(barber.id, normalizedStartsAt, endsAt)) {
+  const created = await transaction(async (client) => {
+    if (await findOverlappingTimeBlock(barber.id, normalizedStartsAt, endsAt, client)) {
       throw new HttpError(409, 'Master is unavailable at the selected time');
     }
-    const conflict = findOverlappingBooking(barber.id, normalizedStartsAt, endsAt);
+    const conflict = await findOverlappingBooking(barber.id, normalizedStartsAt, endsAt, client);
     if (conflict) {
       throw new HttpError(409, 'Selected time slot is no longer available');
     }
 
-    const result = insertBooking.run({
-      serviceId,
-      barberId: barber.id,
-      clientName: trimmedName,
-      clientPhone: normalizedPhone,
-      startsAt: normalizedStartsAt,
-      endsAt,
-      bookingSource: source,
-      aiAssisted: aiAssisted ? 1 : 0,
-    });
-
-    return selectBookingById.get(result.lastInsertRowid);
+    const inserted = await client.one(`
+      INSERT INTO bookings (service_id, barber_id, client_name, client_phone, starts_at, ends_at, status, booking_source, ai_assisted)
+      VALUES (?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)
+      RETURNING id
+    `, [serviceId, barber.id, trimmedName, normalizedPhone, normalizedStartsAt, endsAt, source, aiAssisted ? 1 : 0]);
+    return selectBookingById(inserted.id, client);
   });
 
-  const createdBooking = mapBooking(create());
-  ensureClientRating(normalizedPhone);
+  const createdBooking = mapBooking(created);
+  await ensureClientRating(normalizedPhone);
   return createdBooking;
 }
 
-export function cancelBooking(bookingId) {
-  const result = db.prepare(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`).run(bookingId);
+export async function cancelBooking(bookingId) {
+  const result = await database.run(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`, [bookingId]);
   return result.changes > 0;
 }
 
-export function rescheduleBooking(bookingId, newStartsAt, { enforceClientPolicy = true, penalizeClient = true } = {}) {
+export async function rescheduleBooking(bookingId, newStartsAt, { enforceClientPolicy = true, penalizeClient = true } = {}) {
   const normalizedStartsAt = parseDateTimeParam(newStartsAt);
   if (!normalizedStartsAt) {
     throw new HttpError(400, 'newStartsAt must be in YYYY-MM-DDTHH:mm:ss format');
@@ -284,14 +258,12 @@ export function rescheduleBooking(bookingId, newStartsAt, { enforceClientPolicy 
     throw new HttpError(400, 'Нельзя перенести запись в прошлое');
   }
 
-  const booking = db
-    .prepare(`
+  const booking = await database.one(`
       SELECT b.id, b.service_id, b.barber_id, b.client_phone, b.starts_at, b.status, s.duration_minutes
       FROM bookings b
       JOIN services s ON s.id = b.service_id
       WHERE b.id = ?
-    `)
-    .get(bookingId);
+    `, [bookingId]);
 
   if (!booking) {
     throw new HttpError(404, 'Booking not found');
@@ -305,7 +277,7 @@ export function rescheduleBooking(bookingId, newStartsAt, { enforceClientPolicy 
 
   const minutesUntilVisit = (new Date(booking.starts_at).getTime() - Date.now()) / 60_000;
   if (penalizeClient && minutesUntilVisit < 24 * 60) {
-    applyClientRatingEvent({
+    await applyClientRatingEvent({
       phone: booking.client_phone,
       bookingId,
       eventType: 'late_reschedule',
@@ -319,34 +291,24 @@ export function rescheduleBooking(bookingId, newStartsAt, { enforceClientPolicy 
     throw new HttpError(400, 'Invalid newStartsAt value');
   }
 
-  const updateTx = db.transaction(() => {
-    if (findOverlappingTimeBlock(booking.barber_id, normalizedStartsAt, newEndsAt)) {
+  const updated = await transaction(async (client) => {
+    if (await findOverlappingTimeBlock(booking.barber_id, normalizedStartsAt, newEndsAt, client)) {
       throw new HttpError(409, 'Мастер недоступен в выбранное время');
     }
-    const conflict = db
-      .prepare(`
-        SELECT id FROM bookings
-        WHERE status = 'confirmed'
-          AND barber_id = ?
-          AND id != ?
-          AND starts_at < ?
-          AND ends_at > ?
-        LIMIT 1
-      `)
-      .get(booking.barber_id, bookingId, newEndsAt, normalizedStartsAt);
+    const conflict = await findOverlappingBooking(booking.barber_id, normalizedStartsAt, newEndsAt, client, bookingId);
 
     if (conflict) {
       throw new HttpError(409, 'Selected time slot is no longer available');
     }
 
-    db.prepare(`
+    await client.run(`
       UPDATE bookings
       SET starts_at = ?, ends_at = ?, reminder_3h_sent = 0, reminder_1h_sent = 0
       WHERE id = ?
-    `).run(normalizedStartsAt, newEndsAt, bookingId);
+    `, [normalizedStartsAt, newEndsAt, bookingId]);
 
-    return selectBookingById.get(bookingId);
+    return selectBookingById(bookingId, client);
   });
 
-  return mapBooking(updateTx());
+  return mapBooking(updated);
 }

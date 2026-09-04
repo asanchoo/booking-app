@@ -55,8 +55,8 @@ function catalogReply(services, prefix = 'Сейчас доступны') {
   };
 }
 
-export function runDemoAssistant({ messages = [], now = new Date(), catalog = {} } = {}) {
-  const services = catalog.services || listAiServices();
+export async function runDemoAssistant({ messages = [], now = new Date(), catalog = {} } = {}) {
+  const services = catalog.services || await listAiServices();
   const userMessages = messages.filter((item) => item.role === 'user');
   const latest = userMessages.at(-1)?.content || '';
   const normalizedLatest = normalize(latest);
@@ -87,7 +87,7 @@ export function runDemoAssistant({ messages = [], now = new Date(), catalog = {}
     return catalogReply(services, 'Я пока не понял, какая услуга вам нужна. Вот что можно выбрать');
   }
 
-  const masters = catalog.masters || listAiMasters(selectedService.id);
+  const masters = catalog.masters || await listAiMasters(selectedService.id);
   const latestMaster = findMention(masters, latest);
   const selectedMaster = latestMaster || latestUserSelection(masters, userMessages);
   const hasDate = userMessages.some((message) => DATE_RE.test(message.content));
@@ -145,7 +145,7 @@ export function runDemoAssistant({ messages = [], now = new Date(), catalog = {}
 
   const dateMessage = [...userMessages].reverse().find((message) => DATE_RE.test(message.content));
   const requestedDate = parseRequestedDate(dateMessage?.content || latest, now);
-  const slots = catalog.slots || findAiSlots({ serviceId: selectedService.id, masterId: master.id, dateFrom: requestedDate, dateTo: requestedDate, limit: 8 });
+  const slots = catalog.slots || await findAiSlots({ serviceId: selectedService.id, masterId: master.id, dateFrom: requestedDate, dateTo: requestedDate, limit: 8 });
   if (!slots.length) {
     return {
       message: `У ${master.name} на выбранную дату свободного времени нет. Выберите другой день.`,

@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import { getJwtSecret } from '../config/env.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { normalizePhone } from '../utils/phone.js';
@@ -55,9 +55,10 @@ router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: '�
   const phoneVariant = normalizePhone(login);
 
   // Look up client by any common phone variant
-  const client = db
-    .prepare(`SELECT id, phone, password_hash, name FROM clients WHERE phone = ? OR phone = ?`)
-    .get(cleanPhone, phoneVariant);
+  const client = await database.one(
+    'SELECT id, phone, password_hash, name FROM clients WHERE phone = ? OR phone = ?',
+    [cleanPhone, phoneVariant],
+  );
 
   if (client) {
     const isValid = await bcrypt.compare(password, client.password_hash);
@@ -70,12 +71,12 @@ router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: '�
   }
 
   // 3. Try barber account by its username.
-  const barberAccount = db.prepare(`
+  const barberAccount = await database.one(`
     SELECT ba.barber_id AS barberId, ba.password_hash AS passwordHash, b.name
     FROM barber_accounts ba
     JOIN barbers b ON b.id = ba.barber_id
-    WHERE ba.username = ? AND b.is_active = 1
-  `).get(String(login).trim());
+    WHERE lower(ba.username) = lower(?) AND b.is_active = 1
+  `, [String(login).trim()]);
 
   if (!barberAccount || !(await bcrypt.compare(password, barberAccount.passwordHash))) {
     return res.status(401).json({ error: 'Неверный логин или пароль' });

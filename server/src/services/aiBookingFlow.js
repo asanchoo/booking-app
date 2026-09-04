@@ -55,19 +55,19 @@ function filterTimePreference(slots, text) {
   return filtered;
 }
 
-function cleanContext(input, services) {
+async function cleanContext(input, services) {
   const service = services.find((item) => item.id === Number(input?.serviceId));
   if (!service) return { service: null, master: null, date: input?.date || null };
-  const masters = listAiMasters(service.id);
+  const masters = await listAiMasters(service.id);
   const master = masters.find((item) => item.id === Number(input?.masterId)) || null;
   return { service, masters, master, date: input?.date || null };
 }
 
-export function resolveVerifiedBookingTurn({ messages = [], context: rawContext = {} }) {
-  const services = listAiServices();
+export async function resolveVerifiedBookingTurn({ messages = [], context: rawContext = {} }) {
+  const services = await listAiServices();
   const latest = messages.filter((item) => item.role === 'user').at(-1)?.content || '';
   const normalized = normalize(latest);
-  let { service, masters = [], master, date } = cleanContext(rawContext, services);
+  let { service, masters = [], master, date } = await cleanContext(rawContext, services);
 
   if (PROMPT_INJECTION_RE.test(latest)) {
     const nextStep = !service ? 'выбрать услугу' : (!master ? 'выбрать мастера' : (!date ? 'указать дату' : 'выбрать время из реально доступных вариантов'));
@@ -89,7 +89,7 @@ export function resolveVerifiedBookingTurn({ messages = [], context: rawContext 
   }
 
   if (service && /друг(?:ой|ого)\s+мастер|сменить\s+мастер/.test(normalized)) {
-    const available = listAiMasters(service.id);
+    const available = await listAiMasters(service.id);
     return { message: `Выберите другого мастера для услуги «${service.name}».`, actions: masterActions(available), context: { serviceId: service.id, serviceName: service.name, masterId: null, masterName: null, date: date || null }, toolsUsed: ['list_masters'] };
   }
 
@@ -99,7 +99,7 @@ export function resolveVerifiedBookingTurn({ messages = [], context: rawContext 
   const mentionedService = findMention(services, latest);
   if (mentionedService && mentionedService.id !== service?.id) {
     service = mentionedService;
-    masters = listAiMasters(service.id);
+    masters = await listAiMasters(service.id);
     master = null;
   }
   if (DATE_RE.test(latest)) date = parseRequestedDate(latest);
@@ -158,7 +158,7 @@ export function resolveVerifiedBookingTurn({ messages = [], context: rawContext 
     return { message: `Доступные услуги:\n\n${lines}\n\nКакую услугу вы хотите выбрать?`, actions: serviceActions(services), context, toolsUsed: ['list_services'] };
   }
 
-  masters = listAiMasters(service.id);
+  masters = await listAiMasters(service.id);
   const mentionedMaster = findMention(masters, latest);
   if (mentionedMaster) master = mentionedMaster;
   if (master && !masters.some((item) => item.id === master.id)) master = null;
@@ -195,7 +195,7 @@ export function resolveVerifiedBookingTurn({ messages = [], context: rawContext 
     };
   }
 
-  const found = findAiSlots({ serviceId: service.id, masterId: master.id, dateFrom: date, dateTo: date, limit: 48 });
+  const found = await findAiSlots({ serviceId: service.id, masterId: master.id, dateFrom: date, dateTo: date, limit: 48 });
   const requestedTime = normalized.match(TIME_RE);
   if (requestedTime) {
     const time = `${String(Number(requestedTime[1])).padStart(2, '0')}:${requestedTime[2]}`;

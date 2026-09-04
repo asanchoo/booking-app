@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import { getJwtSecret } from '../config/env.js';
 import { requireClientAuth } from '../middleware/requireClientAuth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
@@ -42,17 +42,17 @@ router.post('/register', rateLimit({ windowMs: 10 * 60 * 1000, max: 30, message:
     }
 
     // Check uniqueness
-    const existing = db.prepare('SELECT id FROM clients WHERE phone = ?').get(cleanPhone);
+    const existing = await database.one('SELECT id FROM clients WHERE phone = ?', [cleanPhone]);
     if (existing) {
       return res.status(409).json({ error: 'Аккаунт с таким номером уже существует' });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
 
-    db.prepare(`
+    await database.run(`
       INSERT INTO clients (phone, password_hash, name)
       VALUES (?, ?, ?)
-    `).run(cleanPhone, password_hash, trimmedName);
+    `, [cleanPhone, password_hash, trimmedName]);
 
     return res.status(201).json({ success: true, phone: cleanPhone });
   } catch (error) {
@@ -81,20 +81,20 @@ router.post('/logout', (req, res) => {
 });
 
 // ─── POST /api/client-auth/telegram/generate-link ───────────────────────────
-router.post('/telegram/generate-link', requireClientAuth, (req, res, next) => {
+router.post('/telegram/generate-link', requireClientAuth, async (req, res, next) => {
   try {
-    return res.json(createTelegramLink(req.clientPhone));
+    return res.json(await createTelegramLink(req.clientPhone));
   } catch (error) {
     next(error);
   }
 });
 
 // ─── GET /api/client-auth/telegram/status ───────────────────────────────────
-router.get('/telegram/status', requireClientAuth, (req, res, next) => {
+router.get('/telegram/status', requireClientAuth, async (req, res, next) => {
   try {
     const phone = req.clientPhone;
 
-    const linkRecord = db.prepare(`SELECT chat_id FROM telegram_links WHERE phone = ?`).get(phone);
+    const linkRecord = await database.one('SELECT chat_id FROM telegram_links WHERE phone = ?', [phone]);
     const linked = Boolean(linkRecord && linkRecord.chat_id);
     return res.json({ linked });
   } catch (error) {
@@ -102,9 +102,9 @@ router.get('/telegram/status', requireClientAuth, (req, res, next) => {
   }
 });
 
-router.get('/telegram-login', rateLimit({ windowMs: 10 * 60 * 1000, max: 20, message: 'Слишком много попыток входа. Попробуйте позже.' }), (req, res) => {
+router.get('/telegram-login', rateLimit({ windowMs: 10 * 60 * 1000, max: 20, message: 'Слишком много попыток входа. Попробуйте позже.' }), async (req, res) => {
   try {
-    const client = consumeTelegramLoginToken(req.query?.token);
+    const client = await consumeTelegramLoginToken(req.query?.token);
     const token = jwt.sign({ role: 'client', phone: client.phone, name: client.name }, getJwtSecret(), { expiresIn: '7d' });
     res.clearCookie('admin_token', { httpOnly: true, sameSite: 'lax' });
     res.clearCookie('barber_token', { httpOnly: true, sameSite: 'lax' });
@@ -125,24 +125,23 @@ router.post('/forgot-password/send-code', rateLimit({ windowMs: 15 * 60 * 1000, 
       return res.status(400).json({ error: 'Укажите корректный номер телефона' });
     }
 
-    const linkRecord = db.prepare('SELECT chat_id FROM telegram_links WHERE phone = ?').get(cleanPhone);
+    const linkRecord = await database.one('SELECT chat_id FROM telegram_links WHERE phone = ?', [cleanPhone]);
     if (!linkRecord || !linkRecord.chat_id) {
       return res.status(400).json({ error: 'Telegram не привязан, обратитесь в поддержку' });
     }
 
     // Rate-limit check (60 sec)
-    const lastOtp = db
-      .prepare(`
-        SELECT datetime(expires_at, '-5 minutes') as created_at
+    const lastOtp = await database.one(`
+        SELECT expires_at AS expiresAt
         FROM otp_codes
         WHERE phone = ?
         ORDER BY id DESC
         LIMIT 1
-      `)
-      .get(cleanPhone);
+      `, [cleanPhone]);
 
-    if (lastOtp?.created_at) {
-      const diffSeconds = (Date.now() - new Date(lastOtp.created_at).getTime()) / 1000;
+    if (lastOtp?.expiresAt) {
+      const createdAt = new Date(lastOtp.expiresAt).getTime() - 5 * 60 * 1000;
+      const diffSeconds = (Date.now() - createdAt) / 1000;
       if (diffSeconds < 60) {
         const waitSeconds = Math.ceil(60 - diffSeconds);
         return res.status(429).json({
@@ -155,8 +154,7 @@ router.post('/forgot-password/send-code', rateLimit({ windowMs: 15 * 60 * 1000, 
     const code = String(crypto.randomInt(1000, 10000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    db.prepare(`INSERT INTO otp_codes (phone, code, expires_at, used) VALUES (?, ?, ?, 0)`)
-      .run(cleanPhone, code, expiresAt);
+    await database.run('INSERT INTO otp_codes (phone, code, expires_at, used) VALUES (?, ?, ?, 0)', [cleanPhone, code, expiresAt]);
 
     await sendTelegramMessage(linkRecord.chat_id, `🔑 Код для восстановления пароля BarberShop: *${code}*`, {
       parse_mode: 'Markdown',
@@ -184,24 +182,20 @@ router.post('/forgot-password/reset', async (req, res, next) => {
     }
 
     const nowIso = new Date().toISOString();
-    const otpRecord = db
-      .prepare(`
+    const otpRecord = await database.one(`
         SELECT id FROM otp_codes
         WHERE phone = ? AND code = ? AND used = 0 AND expires_at > ?
         ORDER BY id DESC LIMIT 1
-      `)
-      .get(cleanPhone, cleanCode, nowIso);
+      `, [cleanPhone, cleanCode, nowIso]);
 
     if (!otpRecord) {
       return res.status(400).json({ error: 'Неверный или истёкший код' });
     }
 
-    db.prepare('UPDATE otp_codes SET used = 1 WHERE id = ?').run(otpRecord.id);
+    await database.run('UPDATE otp_codes SET used = 1 WHERE id = ?', [otpRecord.id]);
 
     const password_hash = await bcrypt.hash(newPassword, 10);
-    const updated = db
-      .prepare('UPDATE clients SET password_hash = ? WHERE phone = ?')
-      .run(password_hash, cleanPhone);
+    const updated = await database.run('UPDATE clients SET password_hash = ? WHERE phone = ?', [password_hash, cleanPhone]);
 
     if (updated.changes === 0) {
       return res.status(404).json({ error: 'Клиент не найден' });

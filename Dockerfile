@@ -18,4 +18,4 @@ COPY --from=client-build /app/client/dist /app/client/dist
 RUN mkdir -p /app/data /app/server/uploads/barbers
 ENV NODE_ENV=production
 EXPOSE 3001
-CMD ["sh", "-c", "node src/db/migrate.js && node src/db/seed.js && node index.js"]
+CMD ["sh", "-c", "node src/db/setup.js && node src/db/seed.js && node index.js"]

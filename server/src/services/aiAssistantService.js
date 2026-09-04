@@ -1,13 +1,8 @@
 import { createHash } from 'crypto';
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import { runDemoAssistant } from './aiDemoEngine.js';
 import { runOpenAiAssistant } from './openAiAssistant.js';
 import { runGeminiAssistant } from './geminiAssistant.js';
-
-const insertInteraction = db.prepare(`
-  INSERT INTO ai_interactions (provider, tools_used, success, latency_ms)
-  VALUES (@provider, @toolsUsed, @success, @latencyMs)
-`);
 
 export function getAiRuntimeStatus() {
   const configuredProvider = String(process.env.AI_PROVIDER || 'auto').toLowerCase();
@@ -26,21 +21,22 @@ export function makeSafetyIdentifier(value) {
   return createHash('sha256').update(String(value || 'anonymous')).digest('hex');
 }
 
-export function getExternalAiRequestsToday() {
-  return db.prepare(`
+export async function getExternalAiRequestsToday() {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const row = await database.one(`
     SELECT COUNT(*) AS count
     FROM ai_interactions
-    WHERE provider IN ('gemini', 'openai') AND created_at >= datetime('now', 'start of day')
-  `).get().count;
+    WHERE provider IN ('gemini', 'openai') AND created_at >= ?
+  `, [startOfDay.toISOString()]);
+  return Number(row?.count || 0);
 }
 
-function saveInteraction({ provider, toolsUsed, success, latencyMs }) {
-  insertInteraction.run({
-    provider,
-    toolsUsed: JSON.stringify(toolsUsed || []),
-    success: success ? 1 : 0,
-    latencyMs: Math.max(0, Math.round(latencyMs)),
-  });
+async function saveInteraction({ provider, toolsUsed, success, latencyMs }) {
+  await database.run(`
+    INSERT INTO ai_interactions (provider, tools_used, success, latency_ms)
+    VALUES (?, ?, ?, ?)
+  `, [provider, JSON.stringify(toolsUsed || []), success ? 1 : 0, Math.max(0, Math.round(latencyMs))]);
 }
 
 export async function runAiAssistant({ messages, clientIdentifier, forceDemo = false }) {
@@ -55,15 +51,15 @@ export async function runAiAssistant({ messages, clientIdentifier, forceDemo = f
       ? await runGeminiAssistant({ messages })
       : (provider === 'openai'
         ? await runOpenAiAssistant({ messages, safetyIdentifier: makeSafetyIdentifier(clientIdentifier) })
-        : runDemoAssistant({ messages }));
+        : await runDemoAssistant({ messages }));
   } catch (error) {
     if (!['openai', 'gemini'].includes(provider)) throw error;
     provider = 'fallback';
     fallback = true;
-    result = runDemoAssistant({ messages });
+    result = await runDemoAssistant({ messages });
     console.warn(`${runtime.provider} assistant unavailable, guided fallback enabled:`, error.message);
   }
 
-  saveInteraction({ provider, toolsUsed: result.toolsUsed, success: true, latencyMs: performance.now() - startedAt });
+  await saveInteraction({ provider, toolsUsed: result.toolsUsed, success: true, latencyMs: performance.now() - startedAt });
   return { ...result, provider, fallback };
 }

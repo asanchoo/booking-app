@@ -39,7 +39,7 @@ const tools = [
   },
 ];
 
-export function actionsForAiTool(name, args, result) {
+export async function actionsForAiTool(name, args, result) {
   if (name === 'list_services') return result.map((service) => ({
     type: 'reply', label: service.name, message: service.name, value: service,
     selection: { serviceId: service.id, serviceName: service.name, masterId: null, masterName: null },
@@ -49,8 +49,8 @@ export function actionsForAiTool(name, args, result) {
     selection: { serviceId: Number(args.service_id), masterId: master.id, masterName: master.name },
   }));
   if (name === 'find_available_slots') {
-    const service = listAiServices().find((item) => item.id === Number(args.service_id));
-    const master = listAiMasters(args.service_id).find((item) => item.id === Number(args.master_id));
+    const service = (await listAiServices()).find((item) => item.id === Number(args.service_id));
+    const master = (await listAiMasters(args.service_id)).find((item) => item.id === Number(args.master_id));
     return result.map((slot) => {
       const startsAt = slot.startsAt || slot.start_time;
       return {
@@ -120,9 +120,9 @@ export async function runOpenAiAssistant({ messages, safetyIdentifier }) {
     for (const call of calls) {
       let args = {};
       try { args = JSON.parse(call.arguments || '{}'); } catch { args = {}; }
-      const result = executeAiTool(call.name, args);
+      const result = await executeAiTool(call.name, args);
       toolsUsed.push(call.name);
-      actions.splice(0, actions.length, ...actionsForAiTool(call.name, args, result));
+      actions.splice(0, actions.length, ...await actionsForAiTool(call.name, args, result));
       outputs.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
     }
     input = [...input, ...(response.output || []), ...outputs];

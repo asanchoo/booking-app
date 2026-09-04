@@ -3,7 +3,7 @@ const require = createRequire(import.meta.url);
 const telegramPkg = require('node-telegram-bot-api');
 const { Bot } = telegramPkg;
 
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import { listClientBookings, cancelBooking, rescheduleBooking } from './bookingService.js';
 import { getAvailableSlots } from './slotService.js';
 import { normalizePhone } from '../utils/phone.js';
@@ -16,14 +16,14 @@ let botInstance = null;
 const pendingReschedules = new Map();
 const pendingReviewComments = new Map();
 
-function getLinkedPhone(chatId) {
-  return db.prepare('SELECT phone FROM telegram_links WHERE chat_id = ?').get(chatId)?.phone || null;
+async function getLinkedPhone(chatId) {
+  return (await database.one('SELECT phone FROM telegram_links WHERE chat_id = ?', [chatId]))?.phone || null;
 }
 
-function getOwnedBooking(chatId, bookingId) {
-  const phone = getLinkedPhone(chatId);
+async function getOwnedBooking(chatId, bookingId) {
+  const phone = await getLinkedPhone(chatId);
   if (!phone) return null;
-  const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId);
+  const booking = await database.one('SELECT * FROM bookings WHERE id = ?', [bookingId]);
   return booking && normalizePhone(booking.client_phone) === normalizePhone(phone) ? booking : null;
 }
 
@@ -55,16 +55,16 @@ export function initBot() {
     return { dateStr, timeStr };
   };
 
-  const linkedMenu = (chatId) => {
+  const linkedMenu = async (chatId) => {
     const rows = [[{ text: '📅 Мои записи', callback_data: 'show_my_bookings' }]];
     try {
-      rows.push([{ text: '🔐 Открыть личный кабинет', url: createTelegramLoginLink(chatId) }]);
+      rows.push([{ text: '🔐 Открыть личный кабинет', url: await createTelegramLoginLink(chatId) }]);
     } catch { /* A Telegram link can exist before the client creates an account. */ }
     return { inline_keyboard: rows };
   };
 
   // Helper to fetch 3 nearest available slots
-  const getNearestThreeSlots = (serviceId, barberId) => {
+  const getNearestThreeSlots = async (serviceId, barberId) => {
     const today = new Date();
     const y1 = today.getFullYear();
     const m1 = String(today.getMonth() + 1).padStart(2, '0');
@@ -77,7 +77,7 @@ export function initBot() {
     const d2 = String(end.getDate()).padStart(2, '0');
     const toStr = `${y2}-${m2}-${d2}`;
 
-    const res = getAvailableSlots(serviceId, barberId, fromStr, toStr);
+    const res = await getAvailableSlots(serviceId, barberId, fromStr, toStr);
     const allSlots = Array.isArray(res?.slots) ? res.slots : [];
     const nowIso = new Date().toISOString();
     const futureSlots = allSlots.filter((s) => (s.startsAt || s.start_time) > nowIso);
@@ -86,7 +86,7 @@ export function initBot() {
 
   // Helper to show upcoming bookings
   async function showMyBookings(chatId) {
-    const link = db.prepare(`SELECT phone FROM telegram_links WHERE chat_id = ?`).get(chatId);
+    const link = await database.one(`SELECT phone FROM telegram_links WHERE chat_id = ?`, [chatId]);
 
     if (!link) {
       return sendTelegramMessage(
@@ -95,7 +95,7 @@ export function initBot() {
       );
     }
 
-    const bookings = listClientBookings(link.phone);
+    const bookings = await listClientBookings(link.phone);
     const upcoming = bookings.filter((b) => b.status === 'confirmed' && new Date(b.startsAt) >= new Date());
 
     if (upcoming.length === 0) {
@@ -123,19 +123,19 @@ export function initBot() {
   // Helper to render slots choice menu for reschedule
   async function renderRescheduleSlotsMenu(chatId, messageId, bookingId, customPrefixText = '') {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    if (!getOwnedBooking(chatId, bookingId)) {
+    if (!await getOwnedBooking(chatId, bookingId)) {
       return fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: '❌ Запись не найдена или принадлежит другому клиенту.' }),
       }).catch(() => {});
     }
-    const booking = db.prepare(`
+    const booking = await database.one(`
       SELECT b.id, b.service_id, b.barber_id, s.name as service_name, barb.name as barber_name
       FROM bookings b
       JOIN services s ON b.service_id = s.id
       LEFT JOIN barbers barb ON b.barber_id = barb.id
       WHERE b.id = ?
-    `).get(bookingId);
+    `, [bookingId]);
 
     if (!booking) {
       return fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
@@ -149,7 +149,7 @@ export function initBot() {
       }).catch(() => {});
     }
 
-    const topSlots = getNearestThreeSlots(booking.service_id, booking.barber_id);
+    const topSlots = await getNearestThreeSlots(booking.service_id, booking.barber_id);
     pendingReschedules.set(bookingId, topSlots);
 
     if (topSlots.length === 0) {
@@ -201,9 +201,10 @@ export function initBot() {
 
     if (startParam) {
       const nowIso = new Date().toISOString();
-      const linkRecord = db
-        .prepare(`SELECT code, phone, expires_at FROM telegram_linking_codes WHERE code = ? AND expires_at > ?`)
-        .get(startParam, nowIso);
+      const linkRecord = await database.one(
+        `SELECT code, phone, expires_at FROM telegram_linking_codes WHERE code = ? AND expires_at > ?`,
+        [startParam, nowIso],
+      );
 
       if (!linkRecord) {
         return sendTelegramMessage(
@@ -213,25 +214,29 @@ export function initBot() {
       }
 
       const cleanPhone = normalizePhone(linkRecord.phone);
-      db.prepare(`INSERT OR REPLACE INTO telegram_links (phone, chat_id) VALUES (?, ?)`).run(cleanPhone, chatId);
-      db.prepare(`DELETE FROM telegram_linking_codes WHERE code = ?`).run(startParam);
+      await database.run(
+        `INSERT INTO telegram_links (phone, chat_id) VALUES (?, ?)
+         ON CONFLICT (phone) DO UPDATE SET chat_id = excluded.chat_id`,
+        [cleanPhone, chatId],
+      );
+      await database.run(`DELETE FROM telegram_linking_codes WHERE code = ?`, [startParam]);
 
       return sendTelegramMessage(
         chatId,
         '✅ Telegram успешно привязан! Теперь вы будете получать уведомления о записях. Если вы уже создали аккаунт на сайте, личный кабинет откроется без пароля.',
         {
-          reply_markup: linkedMenu(chatId),
+          reply_markup: await linkedMenu(chatId),
         }
       );
     }
 
-    const link = db.prepare(`SELECT phone FROM telegram_links WHERE chat_id = ?`).get(chatId);
+    const link = await database.one(`SELECT phone FROM telegram_links WHERE chat_id = ?`, [chatId]);
     if (link) {
       return sendTelegramMessage(
         chatId,
         `Здравствуйте! 👋\n\nВы вошли в бот BarberShop. Нажмите кнопку ниже, чтобы посмотреть свои записи.`,
         {
-          reply_markup: linkedMenu(chatId),
+          reply_markup: await linkedMenu(chatId),
         }
       );
     } else {
@@ -249,7 +254,7 @@ export function initBot() {
 
   botInstance.hears('Личный кабинет', async (ctx) => {
     try {
-      const url = createTelegramLoginLink(ctx.chat.id);
+      const url = await createTelegramLoginLink(ctx.chat.id);
       await sendTelegramMessage(ctx.chat.id, 'Ссылка действует 10 минут и подходит только для одного входа.', {
         reply_markup: { inline_keyboard: [[{ text: '🔐 Открыть личный кабинет', url }]] },
       });
@@ -271,7 +276,7 @@ export function initBot() {
       return;
     }
 
-    const link = db.prepare('SELECT phone FROM telegram_links WHERE chat_id = ?').get(chatId);
+    const link = await database.one('SELECT phone FROM telegram_links WHERE chat_id = ?', [chatId]);
     if (!link || normalizePhone(link.phone) !== pending.phone) {
       pendingReviewComments.delete(chatId);
       await sendTelegramMessage(chatId, 'Не удалось подтвердить аккаунт. Оценка сохранена без комментария.');
@@ -279,7 +284,7 @@ export function initBot() {
     }
 
     try {
-      updateTelegramReviewComment({ bookingId: pending.bookingId, clientPhone: link.phone, comment: text });
+      await updateTelegramReviewComment({ bookingId: pending.bookingId, clientPhone: link.phone, comment: text });
       pendingReviewComments.delete(chatId);
       await sendTelegramMessage(chatId, 'Спасибо! Ваш отзыв опубликован на сайте 💛');
     } catch (error) {
@@ -310,11 +315,11 @@ export function initBot() {
       if (!match) return;
       const bookingId = Number.parseInt(match[1], 10);
       const rating = Number.parseInt(match[2], 10);
-      const link = db.prepare('SELECT phone FROM telegram_links WHERE chat_id = ?').get(chatId);
+      const link = await database.one('SELECT phone FROM telegram_links WHERE chat_id = ?', [chatId]);
 
       try {
         if (!link) throw new Error('Telegram не привязан к аккаунту');
-        createMasterReview({ bookingId, clientPhone: link.phone, rating, source: 'telegram' });
+        await createMasterReview({ bookingId, clientPhone: link.phone, rating, source: 'telegram' });
         pendingReviewComments.set(chatId, {
           bookingId,
           phone: normalizePhone(link.phone),
@@ -365,12 +370,12 @@ export function initBot() {
     // ─── ATTENDANCE CONFIRMATION ─────────────────────────────────────────────
     else if (data.startsWith('confirm_attend_')) {
       const bookingId = parseInt(data.replace('confirm_attend_', ''), 10);
-      if (!getOwnedBooking(chatId, bookingId)) {
+      if (!await getOwnedBooking(chatId, bookingId)) {
         await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
         return;
       }
       const nowIso = new Date().toISOString();
-      db.prepare(`UPDATE bookings SET client_confirmed_at = ? WHERE id = ?`).run(nowIso, bookingId);
+      await database.run(`UPDATE bookings SET client_confirmed_at = ? WHERE id = ?`, [nowIso, bookingId]);
 
       await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
         method: 'POST',
@@ -386,19 +391,19 @@ export function initBot() {
     // ─── CANCELLATION FLOW ──────────────────────────────────────────────────
     else if (data.startsWith('cancel_ask_')) {
       const bookingId = parseInt(data.replace('cancel_ask_', ''), 10);
-      const link = db.prepare(`SELECT phone FROM telegram_links WHERE chat_id = ?`).get(chatId);
-      if (!link || !getOwnedBooking(chatId, bookingId)) {
+      const link = await database.one(`SELECT phone FROM telegram_links WHERE chat_id = ?`, [chatId]);
+      if (!link || !await getOwnedBooking(chatId, bookingId)) {
         await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
         return;
       }
 
-      const booking = db.prepare(`
+      const booking = await database.one(`
         SELECT b.id, b.starts_at, s.name as service_name, barb.name as barber_name
         FROM bookings b
         JOIN services s ON b.service_id = s.id
         LEFT JOIN barbers barb ON b.barber_id = barb.id
         WHERE b.id = ?
-      `).get(bookingId);
+      `, [bookingId]);
 
       if (!booking) {
         return fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
@@ -432,13 +437,13 @@ export function initBot() {
       }).catch(() => {});
     } else if (data.startsWith('cancel_confirm_')) {
       const bookingId = parseInt(data.replace('cancel_confirm_', ''), 10);
-      const link = db.prepare(`SELECT phone FROM telegram_links WHERE chat_id = ?`).get(chatId);
-      if (!link || !getOwnedBooking(chatId, bookingId)) {
+      const link = await database.one(`SELECT phone FROM telegram_links WHERE chat_id = ?`, [chatId]);
+      if (!link || !await getOwnedBooking(chatId, bookingId)) {
         await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
         return;
       }
 
-      const success = cancelBooking(bookingId);
+      const success = await cancelBooking(bookingId);
       if (success) {
         await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
           method: 'POST',
@@ -462,17 +467,17 @@ export function initBot() {
       }
     } else if (data.startsWith('cancel_back_')) {
       const bookingId = parseInt(data.replace('cancel_back_', ''), 10);
-      if (!getOwnedBooking(chatId, bookingId)) {
+      if (!await getOwnedBooking(chatId, bookingId)) {
         await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
         return;
       }
-      const booking = db.prepare(`
+      const booking = await database.one(`
         SELECT b.id, b.starts_at, s.name as service_name, barb.name as barber_name
         FROM bookings b
         JOIN services s ON b.service_id = s.id
         LEFT JOIN barbers barb ON b.barber_id = barb.id
         WHERE b.id = ?
-      `).get(bookingId);
+      `, [bookingId]);
 
       if (booking) {
         const { dateStr, timeStr } = formatDateTimeDisplay(booking.starts_at);
@@ -510,16 +515,16 @@ export function initBot() {
       const parts = data.split('_');
       const bookingId = parseInt(parts[2], 10);
       const slotIdx = parseInt(parts[3], 10);
-      if (!getOwnedBooking(chatId, bookingId)) {
+      if (!await getOwnedBooking(chatId, bookingId)) {
         await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
         return;
       }
 
       let topSlots = pendingReschedules.get(bookingId);
       if (!topSlots) {
-        const booking = db.prepare('SELECT service_id, barber_id FROM bookings WHERE id = ?').get(bookingId);
+        const booking = await database.one('SELECT service_id, barber_id FROM bookings WHERE id = ?', [bookingId]);
         if (booking) {
-          topSlots = getNearestThreeSlots(booking.service_id, booking.barber_id);
+          topSlots = await getNearestThreeSlots(booking.service_id, booking.barber_id);
           pendingReschedules.set(bookingId, topSlots);
         }
       }
@@ -529,13 +534,13 @@ export function initBot() {
         return renderRescheduleSlotsMenu(chatId, messageId, bookingId, '⚠️ Слот не найден.');
       }
 
-      const booking = db.prepare(`
+      const booking = await database.one(`
         SELECT b.id, s.name as service_name, barb.name as barber_name
         FROM bookings b
         JOIN services s ON b.service_id = s.id
         LEFT JOIN barbers barb ON b.barber_id = barb.id
         WHERE b.id = ?
-      `).get(bookingId);
+      `, [bookingId]);
 
       const slotStartsAt = selectedSlot.startsAt || selectedSlot.start_time;
       const { dateStr, timeStr } = formatDateTimeDisplay(slotStartsAt);
@@ -562,16 +567,16 @@ export function initBot() {
       const parts = data.split('_');
       const bookingId = parseInt(parts[2], 10);
       const slotIdx = parseInt(parts[3], 10);
-      if (!getOwnedBooking(chatId, bookingId)) {
+      if (!await getOwnedBooking(chatId, bookingId)) {
         await ctx.answerCallbackQuery({ text: 'Запись не найдена' }).catch(() => {});
         return;
       }
 
       let topSlots = pendingReschedules.get(bookingId);
       if (!topSlots) {
-        const booking = db.prepare('SELECT service_id, barber_id FROM bookings WHERE id = ?').get(bookingId);
+        const booking = await database.one('SELECT service_id, barber_id FROM bookings WHERE id = ?', [bookingId]);
         if (booking) {
-          topSlots = getNearestThreeSlots(booking.service_id, booking.barber_id);
+          topSlots = await getNearestThreeSlots(booking.service_id, booking.barber_id);
           pendingReschedules.set(bookingId, topSlots);
         }
       }
@@ -584,7 +589,7 @@ export function initBot() {
       const newStartsAt = selectedSlot.startsAt || selectedSlot.start_time;
 
       try {
-        const updated = rescheduleBooking(bookingId, newStartsAt);
+        const updated = await rescheduleBooking(bookingId, newStartsAt);
         const { dateStr, timeStr } = formatDateTimeDisplay(updated.startsAt);
         pendingReschedules.delete(bookingId);
 

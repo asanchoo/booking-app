@@ -1,32 +1,32 @@
-import { db } from '../db/connection.js';
+import { database, transaction } from '../db/database.js';
 import { normalizePhone } from '../utils/phone.js';
 
-export function ensureClientRating(rawPhone) {
+export async function ensureClientRating(rawPhone, client = database) {
   const phone = normalizePhone(rawPhone);
   if (!phone) return null;
-  db.prepare('INSERT OR IGNORE INTO client_ratings (phone) VALUES (?)').run(phone);
+  await client.run('INSERT INTO client_ratings (phone) VALUES (?) ON CONFLICT (phone) DO NOTHING', [phone]);
   return phone;
 }
 
-export function applyClientRatingEvent({ phone: rawPhone, bookingId, eventType, delta }) {
-  const phone = ensureClientRating(rawPhone);
+export async function applyClientRatingEvent({ phone: rawPhone, bookingId, eventType, delta }) {
+  const phone = normalizePhone(rawPhone);
   if (!phone) return { applied: false, rating: null };
 
-  return db.transaction(() => {
-    const event = db.prepare(`
-      INSERT OR IGNORE INTO client_rating_events (phone, booking_id, event_type, delta)
+  return transaction(async (client) => {
+    await ensureClientRating(phone, client);
+    const event = await client.run(`
+      INSERT INTO client_rating_events (phone, booking_id, event_type, delta)
       VALUES (?, ?, ?, ?)
-    `).run(phone, bookingId ?? null, eventType, delta);
+      ON CONFLICT (booking_id, event_type) DO NOTHING
+    `, [phone, bookingId ?? null, eventType, delta]);
 
     if (event.changes > 0) {
-      db.prepare(`
-        UPDATE client_ratings
-        SET rating = MIN(5, MAX(1, rating + ?)), updated_at = datetime('now')
-        WHERE phone = ?
-      `).run(delta, phone);
+      const current = Number((await client.one('SELECT rating FROM client_ratings WHERE phone = ?', [phone]))?.rating ?? 5);
+      const next = Math.min(5, Math.max(1, current + Number(delta)));
+      await client.run('UPDATE client_ratings SET rating = ?, updated_at = ? WHERE phone = ?', [next, new Date().toISOString(), phone]);
     }
 
-    const rating = db.prepare('SELECT rating FROM client_ratings WHERE phone = ?').get(phone)?.rating ?? 5;
+    const rating = Number((await client.one('SELECT rating FROM client_ratings WHERE phone = ?', [phone]))?.rating ?? 5);
     return { applied: event.changes > 0, rating };
-  })();
+  });
 }

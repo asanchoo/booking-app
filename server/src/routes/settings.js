@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
+import { database, transaction } from '../db/database.js';
 import { validatePayload } from '../utils/validation.js';
 import { clearCache } from '../services/settings.js';
 
 const router = Router();
 
 // GET settings
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
-    const rows = db.prepare('SELECT key, value FROM business_settings').all();
+    const rows = await database.all('SELECT key, value FROM business_settings');
     const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
     // Map backend keys to camelCase for the frontend if preferred
     res.json({
@@ -23,7 +23,7 @@ router.get('/', (req, res, next) => {
 });
 
 // PUT settings
-router.put('/', (req, res, next) => {
+router.put('/', async (req, res, next) => {
   try {
     const schema = {
       workStart: { required: true, type: 'string', regex: /^\d{2}:\d{2}$/ },
@@ -35,16 +35,16 @@ router.put('/', (req, res, next) => {
 
     const { workStart, workEnd, slotStepMinutes, workDays } = req.body;
 
-    const updateStmt = db.prepare('INSERT OR REPLACE INTO business_settings (key, value) VALUES (?, ?)');
-    
-    // Perform updates in a transaction
-    const transaction = db.transaction(() => {
-      updateStmt.run('work_start', workStart);
-      updateStmt.run('work_end', workEnd);
-      updateStmt.run('slot_step_minutes', String(slotStepMinutes));
-      updateStmt.run('work_days', workDays);
+    await transaction(async (client) => {
+      const upsert = (key, value) => client.run(`
+        INSERT INTO business_settings (key, value) VALUES (?, ?)
+        ON CONFLICT (key) DO UPDATE SET value = excluded.value
+      `, [key, value]);
+      await upsert('work_start', workStart);
+      await upsert('work_end', workEnd);
+      await upsert('slot_step_minutes', String(slotStepMinutes));
+      await upsert('work_days', workDays);
     });
-    transaction();
 
     // Clear settings cache to apply changes immediately
     clearCache();

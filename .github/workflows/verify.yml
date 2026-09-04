@@ -7,6 +7,20 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: booking
+          POSTGRES_PASSWORD: booking_test_password
+          POSTGRES_DB: booking_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U booking -d booking_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,7 +34,12 @@ jobs:
       - run: npm ci --prefix client
       - run: npm run db:migrate --prefix server
       - run: npm run db:seed --prefix server
+      - name: Verify PostgreSQL schema and seed
+        run: npm run db:setup --prefix server
+        env:
+          DATABASE_URL: postgresql://booking:booking_test_password@127.0.0.1:5432/booking_test?sslmode=disable
       - run: npm test --prefix server
       - run: npm run build --prefix client
       - run: node --check server/index.js
       - run: node --check server/src/app.js
+      - run: node --check api/index.js

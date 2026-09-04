@@ -1,13 +1,12 @@
 # Vercel deployment plan
 
-The application is prepared for a gradual Vercel migration, but the local
-SQLite database and uploaded files must not be used as production storage on
-Vercel Functions.
+The application can use Neon Postgres and Vercel Blob in production while
+retaining SQLite and local uploads for local development.
 
 ## Target architecture
 
 - Vite/React frontend: Vercel web service.
-- Express API: Vercel Node.js or container service.
+- Express API: Vercel Node.js Function (`api/index.js`).
 - Relational data: Marketplace Postgres (Neon is the default recommendation).
 - Master photos: Vercel Blob or another S3-compatible object store.
 - Telegram: HTTPS webhook (`TELEGRAM_MODE=webhook`), not polling.
@@ -39,23 +38,23 @@ AI_DAILY_REQUEST_LIMIT=100
 AI_TIMEOUT_MS=60000
 ```
 
-Database and object-storage variables will be added after those resources are
-created in the Vercel Marketplace.
+Neon supplies `DATABASE_URL`. Vercel Blob supplies `BLOB_READ_WRITE_TOKEN`.
+Both must be connected to Production and Preview environments.
 
 ## Deployment order
 
 1. Create and connect Marketplace Postgres.
-2. Migrate the SQLite schema and repository queries to Postgres.
-3. Create Blob storage and switch photo uploads to it.
-4. Add Vercel Services routing for the frontend and API.
-5. Add a five-minute Cron request to `/api/integrations/jobs/reminders`.
+2. Create Blob storage and connect it to the same Vercel project.
+3. Add all required environment variables above.
+4. Deploy; the build applies the idempotent Postgres schema and seed.
+5. Configure a five-minute scheduler request to `/api/integrations/jobs/reminders`.
 6. Deploy, set `PUBLIC_APP_URL`, then run `npm run telegram:set-webhook --prefix server`.
 7. Test registration, all three roles, booking conflicts, Telegram login,
    reminders, review flow, uploads and rollback.
 
 ## Current compatibility
 
-Local Docker remains the reference development environment. It continues to
-use SQLite, a persistent uploads volume, Telegram polling and the in-process
-reminder interval. Production mode can now use webhook and cron endpoints
-without changing the user-facing flows.
+Local Docker remains the reference development environment. It uses SQLite,
+a persistent uploads volume, Telegram polling and the in-process reminder
+interval. Vercel uses Postgres, Blob, Telegram webhook and an external
+scheduler without changing user-facing flows.

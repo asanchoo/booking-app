@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
-import { db } from '../db/connection.js';
+import { database } from '../db/database.js';
 import { validatePayload } from '../utils/validation.js';
 import { barberPhotoUpload, replaceBarberPhoto } from '../services/barberPhotoService.js';
 
 const router = Router();
 
 // GET all barbers (including inactive)
-router.get('/', (req, res) => {
-  const barbers = db
-    .prepare(`
+router.get('/', async (req, res, next) => {
+  try {
+    const barbers = await database.all(`
       SELECT b.id, b.name, b.photo_url AS photoUrl, b.sort_order AS sortOrder, b.is_active AS isActive,
         ba.username AS accountUsername, ROUND(COALESCE(AVG(r.rating), 5), 2) AS rating,
         COUNT(r.id) AS reviewCount
@@ -18,20 +18,20 @@ router.get('/', (req, res) => {
       LEFT JOIN barber_reviews r ON r.barber_id = b.id
       GROUP BY b.id
       ORDER BY b.sort_order ASC
-    `)
-    .all();
-  res.json(barbers);
+    `);
+    res.json(barbers.map((barber) => ({ ...barber, reviewCount: Number(barber.reviewCount) })));
+  } catch (error) { next(error); }
 });
 
-router.get('/time-blocks', (req, res, next) => {
+router.get('/time-blocks', async (req, res, next) => {
   try {
-    const blocks = db.prepare(`
+    const blocks = await database.all(`
       SELECT mtb.id, mtb.master_id AS masterId, b.name AS masterName,
         mtb.starts_at AS startsAt, mtb.ends_at AS endsAt, mtb.reason
       FROM master_time_blocks mtb
       JOIN barbers b ON b.id = mtb.master_id
       ORDER BY mtb.starts_at ASC
-    `).all();
+    `);
     return res.json(blocks);
   } catch (error) {
     return next(error);
@@ -48,29 +48,29 @@ router.post('/:id/account', async (req, res, next) => {
       return res.status(400).json({ error: 'Логин: 3–32 символа, только латиница, цифры, точка, дефис или подчёркивание' });
     }
     if (password.length < 8) return res.status(400).json({ error: 'Пароль должен содержать минимум 8 символов' });
-    const barber = db.prepare('SELECT id FROM barbers WHERE id = ?').get(barberId);
+    const barber = await database.one('SELECT id FROM barbers WHERE id = ?', [barberId]);
     if (!barber) return res.status(404).json({ error: 'Мастер не найден' });
 
     const passwordHash = await bcrypt.hash(password, 12);
-    db.prepare(`
+    await database.run(`
       INSERT INTO barber_accounts (barber_id, username, password_hash)
       VALUES (?, ?, ?)
       ON CONFLICT(barber_id) DO UPDATE SET username = excluded.username, password_hash = excluded.password_hash
-    `).run(barberId, username, passwordHash);
+    `, [barberId, username, passwordHash]);
     return res.status(201).json({ success: true, username });
   } catch (error) {
-    if (String(error?.message).includes('UNIQUE constraint failed: barber_accounts.username')) {
+    if (error?.code === '23505' || String(error?.message).includes('UNIQUE constraint failed: barber_accounts.username')) {
       return res.status(409).json({ error: 'Этот логин уже занят' });
     }
     return next(error);
   }
 });
 
-router.delete('/:id/account', (req, res, next) => {
+router.delete('/:id/account', async (req, res, next) => {
   try {
     const barberId = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(barberId) || barberId <= 0) return res.status(400).json({ error: 'Некорректный ID мастера' });
-    const result = db.prepare('DELETE FROM barber_accounts WHERE barber_id = ?').run(barberId);
+    const result = await database.run('DELETE FROM barber_accounts WHERE barber_id = ?', [barberId]);
     if (result.changes === 0) return res.status(404).json({ error: 'Аккаунт мастера не найден' });
     return res.json({ success: true });
   } catch (error) {
@@ -79,7 +79,7 @@ router.delete('/:id/account', (req, res, next) => {
 });
 
 // POST create barber
-router.post('/', (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const schema = {
       name: { required: true, type: 'string' },
@@ -88,13 +88,8 @@ router.post('/', (req, res, next) => {
     };
     validatePayload(schema, req.body);
     const { name, photoUrl = '', sortOrder } = req.body;
-    const stmt = db.prepare(
-      `INSERT INTO barbers (name, photo_url, sort_order, is_active) VALUES (?, ?, ?, 1)`
-    );
-    const info = stmt.run(name, photoUrl, sortOrder);
-    const newBarber = db
-      .prepare(`SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`)
-      .get(info.lastInsertRowid);
+    const info = await database.one('INSERT INTO barbers (name, photo_url, sort_order, is_active) VALUES (?, ?, ?, 1) RETURNING id', [name, photoUrl, sortOrder]);
+    const newBarber = await database.one(`SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`, [info.id]);
     res.status(201).json(newBarber);
   } catch (err) {
     next(err);
@@ -102,7 +97,7 @@ router.post('/', (req, res, next) => {
 });
 
 // PUT update barber
-router.put('/:id', (req, res, next) => {
+router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const schema = {
@@ -133,11 +128,8 @@ router.put('/:id', (req, res, next) => {
     if (fields.length === 0) {
       return res.status(400).json({ message: 'No fields to update' });
     }
-    const stmt = db.prepare(`UPDATE barbers SET ${fields.join(', ')} WHERE id = ?`);
-    stmt.run(...values, id);
-    const updated = db
-      .prepare(`SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`)
-      .get(id);
+    await database.run(`UPDATE barbers SET ${fields.join(', ')} WHERE id = ?`, [...values, id]);
+    const updated = await database.one(`SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`, [id]);
     res.json(updated);
   } catch (err) {
     next(err);
@@ -145,15 +137,15 @@ router.put('/:id', (req, res, next) => {
 });
 
 // DELETE — smart delete: physical if no bookings, soft if bookings exist
-router.delete('/:id', (req, res, next) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const row = db.prepare('SELECT COUNT(*) AS cnt FROM bookings WHERE barber_id = ?').get(id);
-    if (row.cnt === 0) {
-      db.prepare('DELETE FROM barbers WHERE id = ?').run(id);
+    const row = await database.one('SELECT COUNT(*) AS cnt FROM bookings WHERE barber_id = ?', [id]);
+    if (Number(row.cnt) === 0) {
+      await database.run('DELETE FROM barbers WHERE id = ?', [id]);
       res.json({ deleted: true });
     } else {
-      db.prepare('UPDATE barbers SET is_active = 0 WHERE id = ?').run(id);
+      await database.run('UPDATE barbers SET is_active = 0 WHERE id = ?', [id]);
       res.json({ deleted: false, archived: true, reason: 'Есть связанные записи' });
     }
   } catch (err) {
@@ -163,14 +155,14 @@ router.delete('/:id', (req, res, next) => {
 
 // POST /:id/photo — upload barber photo
 router.post('/:id/photo', (req, res, next) => {
-  barberPhotoUpload.single('photo')(req, res, (uploadErr) => {
+  barberPhotoUpload.single('photo')(req, res, async (uploadErr) => {
     if (uploadErr) {
       const err = new Error(uploadErr.message);
       err.status = 400;
       return next(err);
     }
     try {
-      return res.json(replaceBarberPhoto({ barberId: req.params.id, file: req.file }));
+      return res.json(await replaceBarberPhoto({ barberId: req.params.id, file: req.file }));
     } catch (err) {
       return next(err);
     }
