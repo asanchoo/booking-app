@@ -29,6 +29,9 @@
   color: var(--text-main);
   min-height: 100vh;
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 /* ── Layout ─────────────────────────────── */
@@ -649,8 +652,12 @@
 /* ── Responsive ─────────────────────────── */
 @media (max-width: 640px) {
   .cp-wrap {
-    padding: 24px 16px 60px;
+    width: 100%;
+    max-width: none;
+    padding: 26px 16px 88px;
   }
+
+  .cp-header { margin-bottom: 28px; }
 
   .cp-brand {
     font-size: 1.8rem;
@@ -668,8 +675,10 @@
   }
 
   .cp-prog-line {
-    width: 28px;
-    margin: 16px 6px 0;
+    min-width: 12px;
+    width: auto;
+    flex: 1;
+    margin: 16px 4px 0;
   }
 
   .cp-prog-label {
@@ -677,7 +686,8 @@
   }
 
   .cp-prog-step {
-    min-width: 60px;
+    min-width: 0;
+    flex: 0 1 92px;
   }
 
   .cp-selected-bar {
@@ -703,7 +713,11 @@
   }
 
   .cp-modal-content {
-    max-height: 85vh;
+    width: 100%;
+    max-width: none;
+    max-height: 88dvh;
+    margin-top: auto;
+    border-radius: 20px 20px 0 0;
   }
 
   .cp-modal-header {
@@ -713,4 +727,8 @@
   .cp-modal-body {
     padding: 16px;
   }
+
+  .cp-center { min-height: auto; align-items: flex-start; }
+  .cp-success { width: 100%; }
+  .service-card, .barber-card { min-width: 0; }
 }

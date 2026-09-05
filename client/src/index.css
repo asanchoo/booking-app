@@ -35,6 +35,12 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+html, #root, main {
+  width: 100%;
+  min-width: 0;
 }
 
 a {
@@ -67,6 +73,11 @@ input, select {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-color-light);
+}
+
+@media (max-width: 700px) {
+  html { scrollbar-width: none; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
 }
 
 /* Glassmorphism helpers */

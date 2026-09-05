@@ -1541,6 +1541,141 @@
   .appointment-details-panel { position: fixed; bottom: 0; left: 0; right: 0; width: auto; min-width: auto; border-top: 1px solid var(--adm-border); border-left: none; }
 }
 
+/* Mobile workspace: full-width content and a reachable bottom navigation. */
+@media (max-width: 700px) {
+  .admin-dashboard-layout {
+    display: block;
+    width: 100%;
+    min-height: calc(100dvh - 57px);
+    height: auto;
+    overflow: visible;
+  }
+
+  .admin-sidebar,
+  .admin-sidebar.collapsed {
+    position: fixed;
+    z-index: 1100;
+    inset: auto 0 0 0;
+    width: 100%;
+    min-width: 0;
+    height: calc(68px + env(safe-area-inset-bottom));
+    padding: 7px 8px env(safe-area-inset-bottom);
+    border-top: 1px solid var(--adm-border);
+    border-right: 0;
+    box-shadow: 0 -8px 28px rgba(24,24,27,.09);
+    flex-direction: row;
+  }
+
+  .sidebar-header,
+  .admin-profile { display: none; }
+
+  .sidebar-nav {
+    min-width: 0;
+    flex: 1;
+    flex-direction: row;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
+
+  .sidebar-nav-item {
+    width: 62px;
+    min-width: 62px;
+    height: 54px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 5px 3px;
+    border-radius: 10px;
+    text-align: center;
+  }
+  .sidebar-nav-label,
+  .admin-sidebar.collapsed .sidebar-nav-label {
+    display: block;
+    width: 100%;
+    color: inherit;
+    font-size: .57rem;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+  }
+  .sidebar-active-pill { inset: auto 12px 0; width: auto; height: 3px; border-radius: 3px 3px 0 0; }
+
+  .sidebar-footer {
+    width: 52px;
+    flex: 0 0 52px;
+    justify-content: center;
+    padding: 0 0 0 5px;
+    border-top: 0;
+    border-left: 1px solid var(--adm-border);
+  }
+  .logout-btn { width: 46px; height: 54px; justify-content: center; padding: 0; border-radius: 10px; }
+  .logout-btn span { display: none; }
+
+  .admin-main-viewport {
+    width: 100%;
+    min-width: 0;
+    min-height: calc(100dvh - 57px);
+    padding: 18px 14px calc(92px + env(safe-area-inset-bottom));
+    overflow: visible;
+  }
+  .admin-top-bar { align-items: center; gap: 10px; margin-bottom: 18px; }
+  .page-title { font-size: clamp(1.35rem, 7vw, 1.8rem); line-height: 1.08; }
+  .refresh-btn { flex: 0 0 auto; min-width: 42px; padding: 10px; }
+  .refresh-btn span { display: none; }
+  .admin-workspace-content,
+  .overview-tab-view,
+  .appointments-tab-view,
+  .calendar-tab-view,
+  .clients-tab-view { width: 100%; min-width: 0; }
+
+  .admin-pulse-card { gap: 18px; margin-bottom: 14px; padding: 20px; border-radius: 16px; }
+  .admin-pulse-card h2 { font-size: 1.25rem; }
+  .admin-pulse-card p { font-size: .78rem; }
+  .admin-quick-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .admin-quick-actions button { justify-content: center; padding: 10px 8px; }
+  .admin-quick-actions button:first-child { grid-column: 1 / -1; }
+
+  .metrics-row { grid-template-columns: 1fr; gap: 10px; }
+  .metric-card { min-width: 0; }
+  .admin-insights-grid { gap: 12px; }
+  .admin-today-row { grid-template-columns: 50px minmax(0,1fr) auto; padding: 12px 14px; }
+
+  .saas-table-card { width: 100%; min-width: 0; padding: 14px; border-radius: 14px; }
+  .table-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .table-toolbar .search-box { grid-column: 1 / -1; max-width: none; }
+  .filter-tabs { grid-column: 1 / -1; width: 100%; overflow-x: auto; }
+  .filter-btn { flex: 1 0 auto; }
+  .admin-new-booking-button,
+  .table-toolbar .admin-export-button { width: 100%; }
+
+  .table-responsive { overflow: visible; }
+  .saas-table, .saas-table tbody { display: block; width: 100%; }
+  .saas-table thead { display: none; }
+  .saas-table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 11px 14px;
+    margin-bottom: 12px;
+    padding: 15px;
+    border: 1px solid var(--adm-border);
+    border-radius: 13px;
+    background: #FFF;
+    box-shadow: var(--adm-shadow-sm);
+  }
+  .saas-table tr:last-child { margin-bottom: 0; }
+  .saas-table td { display: block; min-width: 0; padding: 0; border: 0; }
+  .saas-table td::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--adm-dim); font-size: .61rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+  .saas-table td:nth-child(1), .saas-table td:nth-child(2), .saas-table td:nth-child(6), .saas-table td:nth-child(7) { grid-column: 1 / -1; }
+  .saas-table td:nth-child(7) { display: none; }
+  .phone-cell, .barber-cell, .service-badge { min-width: 0; }
+  .phone-cell span, .barber-cell span, .service-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .calendar-grid-table { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  .section-card-panel { max-width: 100%; }
+}
+
 @media (max-height: 700px) {
   .admin-sidebar { padding-top: 12px; padding-bottom: 12px; }
   .sidebar-header { gap: 7px; margin-bottom: 10px; }

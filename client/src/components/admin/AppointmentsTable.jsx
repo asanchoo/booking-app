@@ -164,7 +164,7 @@ export default function AppointmentsTable({
                     className={isSelected ? 'selected-row' : ''}
                     onClick={() => onSelectBooking(b)}
                   >
-                    <td>
+                    <td data-label="Дата и время">
                       <div className="date-cell">
                         <span className="date-main">{formatDate(time)}</span>
                         <span className="time-sub">
@@ -172,36 +172,36 @@ export default function AppointmentsTable({
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Клиент">
                       <div className="client-cell">
                         <span className="client-name">{cName}</span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Телефон">
                       <div className="phone-cell">
                         <Phone size={13} />
                         <span>{cPhone}</span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Мастер">
                       <div className="barber-cell">
                         <User size={13} />
                         <span>{bName}</span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Услуга">
                       <div className="service-badge">
                         <Scissors size={13} />
                         <span>{sName}</span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Статус">
                       <span className={`status-pill ${statusInfo.className}`}>
                         <CheckCircle2 size={12} />
                         {statusInfo.label}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Действия">
                       <button
                         className="btn-view-details"
                         onClick={(e) => {

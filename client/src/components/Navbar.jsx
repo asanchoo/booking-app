@@ -26,6 +26,13 @@ export default function Navbar() {
     return 'Мои записи';
   };
 
+  const getMobileAccountLabel = () => {
+    if (!authenticated) return 'Кабинет';
+    if (role === 'admin') return 'Админ';
+    if (role === 'barber') return 'Мастер';
+    return 'Записи';
+  };
+
   const isAccountActive =
     location.pathname === '/login' ||
     location.pathname === '/my-account' ||
@@ -52,7 +59,8 @@ export default function Navbar() {
               className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
             >
               <CalendarCheck size={18} />
-              <span>Записаться</span>
+              <span className="nav-label-full">Записаться</span>
+              <span className="nav-label-mobile">Запись</span>
             </Link>
           )}
 
@@ -61,7 +69,8 @@ export default function Navbar() {
             className={`nav-item ${isAccountActive ? 'active' : ''}`}
           >
             {role === 'admin' ? <ShieldCheck size={18} /> : <User size={18} />}
-            <span>{getAccountLabel()}</span>
+            <span className="nav-label-full">{getAccountLabel()}</span>
+            <span className="nav-label-mobile">{getMobileAccountLabel()}</span>
           </Link>
         </nav>
       </div>
