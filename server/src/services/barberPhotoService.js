@@ -13,8 +13,10 @@ const MIME_EXTENSIONS = new Map([
   ['image/png', '.png'],
   ['image/webp', '.webp'],
 ]);
+const useBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const useLocalDisk = !useBlob && !process.env.VERCEL;
 
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (useLocalDisk) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const diskStorage = multer.diskStorage({
   destination: (req, file, callback) => callback(null, UPLOADS_DIR),
@@ -24,10 +26,8 @@ const diskStorage = multer.diskStorage({
     callback(null, `barber-${ownerId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${extension}`);
   },
 });
-const useBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
-
 export const barberPhotoUpload = multer({
-  storage: useBlob ? multer.memoryStorage() : diskStorage,
+  storage: useLocalDisk ? diskStorage : multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, callback) => {
     if (MIME_EXTENSIONS.has(file.mimetype)) return callback(null, true);
@@ -79,8 +79,10 @@ export async function replaceBarberPhoto({ barberId, file }) {
       addRandomSuffix: false,
     });
     photoUrl = blob.url;
-  } else {
+  } else if (useLocalDisk) {
     photoUrl = `/uploads/barbers/${file.filename}`;
+  } else {
+    throw new HttpError(503, 'Хранилище фотографий временно недоступно');
   }
   await database.run('UPDATE barbers SET photo_url = ? WHERE id = ?', [photoUrl, id]);
 
