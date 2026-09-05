@@ -1,23 +1,28 @@
 import { database } from '../db/database.js';
 import { sendTelegramMessage } from './telegramService.js';
+import crypto from 'node:crypto';
 
-export async function checkAndSendReminders() {
-  const stats = { reminders3h: 0, reminders1h: 0, reviewRequests: 0 };
+export async function checkAndSendReminders({ db = database, send = sendTelegramMessage, now = new Date() } = {}) {
+  const stats = { reminders3h: 0, reminders1h: 0, reviewRequests: 0, failures: 0 };
+  const owner = crypto.randomUUID();
+  const lease = await db.one(`INSERT INTO scheduled_job_leases (name, owner, expires_at) VALUES ('reminders', ?, ?)
+    ON CONFLICT (name) DO UPDATE SET owner = excluded.owner, expires_at = excluded.expires_at
+    WHERE scheduled_job_leases.expires_at <= ? RETURNING owner`,
+  [owner, new Date(Date.now() + 120_000).toISOString(), new Date().toISOString()]);
+  if (!lease) return { ...stats, skipped: true };
+  const deadline = Date.now() + 40_000;
   try {
-    const now = new Date();
     const nowMs = now.getTime();
 
-    // Windows in milliseconds
-    // 3h window: 2h50m to 3h10m (170 min to 190 min)
-    const min3h = nowMs + 170 * 60 * 1000;
-    const max3h = nowMs + 190 * 60 * 1000;
+    // Catch up after scheduler delays, but never send reminders for past visits.
+    const min3h = nowMs + 60 * 60 * 1000;
+    const max3h = nowMs + 180 * 60 * 1000;
 
-    // 1h window: 50m to 70m (50 min to 70 min)
-    const min1h = nowMs + 50 * 60 * 1000;
-    const max1h = nowMs + 70 * 60 * 1000;
+    const min1h = nowMs;
+    const max1h = nowMs + 60 * 60 * 1000;
 
     // 1. Fetch upcoming confirmed bookings that might need reminders
-    const candidateBookings = await database.all(`
+    const candidateBookings = await db.all(`
         SELECT 
           b.id,
           b.client_phone,
@@ -34,6 +39,7 @@ export async function checkAndSendReminders() {
       `);
 
     for (const bk of candidateBookings) {
+      if (Date.now() >= deadline) break;
       const startsAtDate = new Date(bk.starts_at);
       const startsAtMs = startsAtDate.getTime();
       if (isNaN(startsAtMs)) continue;
@@ -45,32 +51,33 @@ export async function checkAndSendReminders() {
       const barberName = bk.barber_name || 'мастеру';
 
       // Check 3h reminder
-      if (bk.reminder_3h_sent === 0 && startsAtMs >= min3h && startsAtMs <= max3h) {
+      if (bk.reminder_3h_sent === 0 && startsAtMs > min3h && startsAtMs <= max3h) {
         // Find telegram chat_id
-        const link = await database.one(`SELECT chat_id FROM telegram_links WHERE phone = ?`, [bk.client_phone]);
+        const link = await db.one(`SELECT chat_id FROM telegram_links WHERE phone = ?`, [bk.client_phone]);
 
         if (link && link.chat_id) {
-          const text = `⏰ Напоминание: запись на ${bk.service_name} к ${barberName} сегодня в ${timeStr} (через 3 часа)`;
+          const text = `⏰ Напоминание: запись на ${bk.service_name} к ${barberName} сегодня в ${timeStr}. Ждём вас!`;
           try {
-            await sendTelegramMessage(link.chat_id, text);
+            await send(link.chat_id, text);
+            await db.run(`UPDATE bookings SET reminder_3h_sent = 1 WHERE id = ?`, [bk.id]);
             stats.reminders3h += 1;
           } catch (err) {
+            stats.failures += 1;
             console.error(`[Reminder] Failed to send 3h reminder for booking #${bk.id}:`, err?.message);
           }
         }
 
-        await database.run(`UPDATE bookings SET reminder_3h_sent = 1 WHERE id = ?`, [bk.id]);
       }
 
       // Check 1h reminder
-      if (bk.reminder_1h_sent === 0 && startsAtMs >= min1h && startsAtMs <= max1h) {
+      if (bk.reminder_1h_sent === 0 && startsAtMs > min1h && startsAtMs <= max1h) {
         // Find telegram chat_id
-        const link = await database.one(`SELECT chat_id FROM telegram_links WHERE phone = ?`, [bk.client_phone]);
+        const link = await db.one(`SELECT chat_id FROM telegram_links WHERE phone = ?`, [bk.client_phone]);
 
         if (link && link.chat_id) {
-          const text = `⏰ Напоминание: запись на ${bk.service_name} к ${barberName} сегодня в ${timeStr} (через 1 час). Пожалуйста, подтвердите ваш визит:`;
+          const text = `⏰ Скоро ваш визит: ${bk.service_name} к ${barberName} сегодня в ${timeStr}. Пожалуйста, подтвердите ваш визит:`;
           try {
-            await sendTelegramMessage(link.chat_id, text, {
+            await send(link.chat_id, text, {
               reply_markup: {
                 inline_keyboard: [
                   [
@@ -80,19 +87,20 @@ export async function checkAndSendReminders() {
                 ],
               },
             });
+            await db.run(`UPDATE bookings SET reminder_1h_sent = 1 WHERE id = ?`, [bk.id]);
             stats.reminders1h += 1;
           } catch (err) {
+            stats.failures += 1;
             console.error(`[Reminder] Failed to send 1h reminder for booking #${bk.id}:`, err?.message);
           }
         }
 
-        await database.run(`UPDATE bookings SET reminder_1h_sent = 1 WHERE id = ?`, [bk.id]);
       }
     }
 
     // Ask for feedback only after a master has confirmed the visit and the service has ended.
     // The seven-day boundary avoids messaging clients about old records after a deployment.
-    const reviewCandidates = await database.all(`
+    const reviewCandidates = await db.all(`
       SELECT b.id, b.client_phone, b.ends_at,
         s.name AS service_name, barb.name AS barber_name
       FROM bookings b
@@ -106,15 +114,16 @@ export async function checkAndSendReminders() {
 
     const oldestEligibleMs = nowMs - 7 * 24 * 60 * 60 * 1000;
     for (const booking of reviewCandidates) {
+      if (Date.now() >= deadline) break;
       const endsAtMs = new Date(booking.ends_at).getTime();
       if (!Number.isFinite(endsAtMs) || endsAtMs > nowMs || endsAtMs < oldestEligibleMs) continue;
 
-      const link = await database.one('SELECT chat_id FROM telegram_links WHERE phone = ?', [booking.client_phone]);
+      const link = await db.one('SELECT chat_id FROM telegram_links WHERE phone = ?', [booking.client_phone]);
       if (!link?.chat_id) continue;
 
       const text = `✨ Спасибо за визит!\n\nКак вам услуга «${booking.service_name}» у мастера ${booking.barber_name}? Оцените одним нажатием — это займёт несколько секунд.`;
       try {
-        await sendTelegramMessage(link.chat_id, text, {
+        await send(link.chat_id, text, {
           reply_markup: {
             inline_keyboard: [[1, 2, 3, 4, 5].map((rating) => ({
               text: `${rating} ⭐`,
@@ -122,17 +131,21 @@ export async function checkAndSendReminders() {
             }))],
           },
         });
-        await database.run(`UPDATE bookings SET review_request_sent_at = ? WHERE id = ?`, [
+        await db.run(`UPDATE bookings SET review_request_sent_at = ? WHERE id = ?`, [
           new Date().toISOString(),
           booking.id,
         ]);
         stats.reviewRequests += 1;
       } catch (error) {
+        stats.failures += 1;
         console.error(`[Reminder] Failed to send review request for booking #${booking.id}:`, error?.message);
       }
     }
   } catch (err) {
     console.error('[Reminder] Error checking reminders:', err);
+    throw err;
+  } finally {
+    await db.run('DELETE FROM scheduled_job_leases WHERE name = ? AND owner = ?', ['reminders', owner]);
   }
   return stats;
 }
@@ -140,8 +153,8 @@ export async function checkAndSendReminders() {
 export function initReminderCron(intervalMs = 5 * 60 * 1000) {
   console.log(`[Reminder] Initializing reminder scheduler (interval: ${intervalMs / 1000}s)...`);
   // Run once immediately on start
-  checkAndSendReminders();
+  checkAndSendReminders().catch(error => console.error('[Reminder]', error.message));
   // Schedule interval
-  const intervalId = setInterval(checkAndSendReminders, intervalMs);
+  const intervalId = setInterval(() => checkAndSendReminders().catch(error => console.error('[Reminder]', error.message)), intervalMs);
   return intervalId;
 }

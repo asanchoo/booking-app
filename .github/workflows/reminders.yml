@@ -1,0 +1,29 @@
+name: Send booking reminders
+
+on:
+  schedule:
+    - cron: '3-58/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: production-reminders
+  cancel-in-progress: false
+
+jobs:
+  reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run protected reminder job
+        env:
+          CRON_SECRET: ${{ secrets.REMINDERS_CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo 'REMINDERS_CRON_SECRET is missing'
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://booking-app-mocha-three.vercel.app/api/integrations/jobs/reminders

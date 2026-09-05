@@ -9,12 +9,12 @@ import { getAvailableSlots } from './slotService.js';
 import { normalizePhone } from '../utils/phone.js';
 import { createMasterReview, updateTelegramReviewComment } from './reviewService.js';
 import { createTelegramLoginLink } from './telegramLoginService.js';
+import { telegramState } from './telegramStateService.js';
 
 let botInstance = null;
 
-// In-memory cache for proposed reschedule slots per booking
-const pendingReschedules = new Map();
-const pendingReviewComments = new Map();
+const pendingReschedules = telegramState('reschedule');
+const pendingReviewComments = telegramState('review');
 
 async function getLinkedPhone(chatId) {
   return (await database.one('SELECT phone FROM telegram_links WHERE chat_id = ?', [chatId]))?.phone || null;
@@ -37,6 +37,7 @@ export function initBot() {
   if (botInstance) return botInstance;
 
   botInstance = new Bot(token);
+  botInstance.catch(error => { throw error; });
   console.log('[TelegramBot] Bot initialized.');
 
   // Helper to format date & time for display
@@ -150,7 +151,7 @@ export function initBot() {
     }
 
     const topSlots = await getNearestThreeSlots(booking.service_id, booking.barber_id);
-    pendingReschedules.set(bookingId, topSlots);
+    await pendingReschedules.set(`${bookingId}:${messageId}`, topSlots);
 
     if (topSlots.length === 0) {
       return fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
@@ -267,25 +268,25 @@ export function initBot() {
   botInstance.on('message', async (ctx, next) => {
     const chatId = ctx.chat?.id;
     const text = String(ctx.message?.text || '').trim();
-    const pending = pendingReviewComments.get(chatId);
+    const pending = await pendingReviewComments.get(chatId);
     if (!pending || !text || text.startsWith('/')) return next();
 
     if (pending.expiresAt <= Date.now()) {
-      pendingReviewComments.delete(chatId);
+      await pendingReviewComments.delete(chatId);
       await sendTelegramMessage(chatId, 'Время для комментария истекло, но ваша оценка уже сохранена. Спасибо!');
       return;
     }
 
     const link = await database.one('SELECT phone FROM telegram_links WHERE chat_id = ?', [chatId]);
     if (!link || normalizePhone(link.phone) !== pending.phone) {
-      pendingReviewComments.delete(chatId);
+      await pendingReviewComments.delete(chatId);
       await sendTelegramMessage(chatId, 'Не удалось подтвердить аккаунт. Оценка сохранена без комментария.');
       return;
     }
 
     try {
       await updateTelegramReviewComment({ bookingId: pending.bookingId, clientPhone: link.phone, comment: text });
-      pendingReviewComments.delete(chatId);
+      await pendingReviewComments.delete(chatId);
       await sendTelegramMessage(chatId, 'Спасибо! Ваш отзыв опубликован на сайте 💛');
     } catch (error) {
       await sendTelegramMessage(chatId, `Не удалось сохранить комментарий: ${error.message || 'попробуйте позже'}`);
@@ -320,7 +321,7 @@ export function initBot() {
       try {
         if (!link) throw new Error('Telegram не привязан к аккаунту');
         await createMasterReview({ bookingId, clientPhone: link.phone, rating, source: 'telegram' });
-        pendingReviewComments.set(chatId, {
+        await pendingReviewComments.set(chatId, {
           bookingId,
           phone: normalizePhone(link.phone),
           expiresAt: Date.now() + 30 * 60 * 1000,
@@ -353,8 +354,8 @@ export function initBot() {
       }
     } else if (data.startsWith('review_skip_')) {
       const bookingId = Number.parseInt(data.replace('review_skip_', ''), 10);
-      const pending = pendingReviewComments.get(chatId);
-      if (pending?.bookingId === bookingId) pendingReviewComments.delete(chatId);
+      const pending = await pendingReviewComments.get(chatId);
+      if (pending?.bookingId === bookingId) await pendingReviewComments.delete(chatId);
       await ctx.answerCallbackQuery({ text: 'Спасибо за оценку!' }).catch(() => {});
       await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
         method: 'POST',
@@ -520,14 +521,7 @@ export function initBot() {
         return;
       }
 
-      let topSlots = pendingReschedules.get(bookingId);
-      if (!topSlots) {
-        const booking = await database.one('SELECT service_id, barber_id FROM bookings WHERE id = ?', [bookingId]);
-        if (booking) {
-          topSlots = await getNearestThreeSlots(booking.service_id, booking.barber_id);
-          pendingReschedules.set(bookingId, topSlots);
-        }
-      }
+      const topSlots = await pendingReschedules.get(`${bookingId}:${messageId}`);
 
       const selectedSlot = topSlots ? topSlots[slotIdx] : null;
       if (!selectedSlot) {
@@ -572,14 +566,7 @@ export function initBot() {
         return;
       }
 
-      let topSlots = pendingReschedules.get(bookingId);
-      if (!topSlots) {
-        const booking = await database.one('SELECT service_id, barber_id FROM bookings WHERE id = ?', [bookingId]);
-        if (booking) {
-          topSlots = await getNearestThreeSlots(booking.service_id, booking.barber_id);
-          pendingReschedules.set(bookingId, topSlots);
-        }
-      }
+      const topSlots = await pendingReschedules.get(`${bookingId}:${messageId}`);
 
       const selectedSlot = topSlots ? topSlots[slotIdx] : null;
       if (!selectedSlot) {
@@ -591,7 +578,7 @@ export function initBot() {
       try {
         const updated = await rescheduleBooking(bookingId, newStartsAt);
         const { dateStr, timeStr } = formatDateTimeDisplay(updated.startsAt);
-        pendingReschedules.delete(bookingId);
+        await pendingReschedules.delete(`${bookingId}:${messageId}`);
 
         await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
           method: 'POST',
@@ -638,7 +625,7 @@ export function initBot() {
 export async function processTelegramUpdate(update) {
   const bot = initBot();
   if (!bot) throw new Error('Telegram bot is not configured');
-  await bot.processUpdate(update);
+  await bot.handleUpdate(update);
 }
 
 export async function sendTelegramMessage(chatId, text, options = {}) {
@@ -655,6 +642,7 @@ export async function sendTelegramMessage(chatId, text, options = {}) {
 
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
+    signal: AbortSignal.timeout(10_000),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });

@@ -33,7 +33,7 @@ router.get('/jobs/reminders', async (req, res, next) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const result = await checkAndSendReminders();
-    return res.json({ ok: true, ...result });
+    return res.status(result.failures ? 503 : 200).json({ ok: !result.failures, ...result });
   } catch (error) {
     return next(error);
   }

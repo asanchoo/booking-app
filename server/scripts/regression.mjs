@@ -86,6 +86,8 @@ try {
   await request('/barber/bookings', { cookie: barber, status: 401 });
   await request(`/admin/services/${service.id}`, { method: 'DELETE', cookie: admin });
   await request('/auth/logout', { method: 'POST', cookie: client });
+  const { integrationRegression } = await import('./integrationRegression.mjs');
+  await integrationRegression({ database, bookingId: aiBooking.id, phone });
   console.log(`PASS: ${checks} HTTP checks against PostgreSQL (roles, catalog, bookings, reschedule, cancel, breaks, reviews, AI, Telegram link).`);
 } finally {
   await new Promise(resolve => server.close(resolve));

@@ -10,7 +10,13 @@ retaining SQLite and local uploads for local development.
 - Relational data: Marketplace Postgres (Neon is the default recommendation).
 - Master photos: Vercel Blob or another S3-compatible object store.
 - Telegram: HTTPS webhook (`TELEGRAM_MODE=webhook`), not polling.
-- Reminders and review requests: Vercel Cron (`REMINDER_MODE=cron`).
+- Reminders and review requests: external scheduler (`REMINDER_MODE=cron`).
+  This repository includes `.github/workflows/reminders.yml` with a five-minute
+  requested cadence and a manual trigger. Store the same random `CRON_SECRET`
+  in Vercel and GitHub Actions as `REMINDERS_CRON_SECRET`.
+  GitHub schedules can be delayed and public repositories pause them after
+  60 days without activity. This is a demo setup, not a delivery-time SLA.
+  Vercel Hobby cron runs at most once daily and cannot replace this schedule.
 
 ## Required production variables
 
@@ -48,7 +54,8 @@ Both must be connected to Production and Preview environments.
 2. Create Blob storage and connect it to the same Vercel project.
 3. Add all required environment variables above.
 4. Deploy; the build applies the idempotent Postgres schema and seed.
-5. Configure a five-minute scheduler request to `/api/integrations/jobs/reminders`.
+5. Configure a five-minute scheduler request to `/api/integrations/jobs/reminders`
+   with `Authorization: Bearer <CRON_SECRET>`. Verify a manual run succeeds.
 6. Deploy, set `PUBLIC_APP_URL`, then run `npm run telegram:set-webhook --prefix server`.
 7. Test registration, all three roles, booking conflicts, Telegram login,
    reminders, review flow, uploads and rollback.
@@ -59,3 +66,11 @@ Local Docker remains the reference development environment. It uses SQLite,
 a persistent uploads volume, Telegram polling and the in-process reminder
 interval. Vercel uses Postgres, Blob, Telegram webhook and an external
 scheduler without changing user-facing flows.
+
+Telegram review comments and reschedule choices are persisted in Postgres with
+a 30-minute expiry. Expired reschedule buttons ask for a new selection rather
+than silently choosing a different slot. Reminder jobs use a database lease to
+avoid overlapping workers, and mark notifications sent only after Telegram
+accepts them. Failed sends are retried by later jobs while the visit is upcoming.
+An interruption after Telegram accepts a message but before its database flag is
+saved can still result in a duplicate: Telegram has no idempotency key for sends.
