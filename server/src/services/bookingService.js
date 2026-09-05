@@ -4,6 +4,15 @@ import { HttpError } from '../utils/httpError.js';
 import { assertBookingCanBeChanged } from '../utils/bookingPolicy.js';
 import { normalizePhone } from '../utils/phone.js';
 import { applyClientRatingEvent, ensureClientRating } from './clientRatingService.js';
+import { getAvailableSlots } from './slotService.js';
+import { addDays, formatDate, parseDateParam } from '../utils/datetime.js';
+
+async function assertAvailableTime(serviceId, barberId, startsAt, excludedBookingId = null) {
+  const date = startsAt.slice(0, 10);
+  const previous = formatDate(addDays(parseDateParam(date), -1));
+  const availability = await getAvailableSlots(serviceId, barberId, previous, date, excludedBookingId);
+  if (!availability.slots.some(slot => slot.startsAt === startsAt)) throw new HttpError(409, 'Выбранное время недоступно. Выберите свободное время в расписании');
+}
 
 function mapBooking(row) {
   return {
@@ -173,7 +182,7 @@ export async function listClientBookings(clientPhone) {
   }));
 }
 
-export async function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online', aiAssisted = false }) {
+export async function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online', aiAssisted = false } = {}) {
   if (!Number.isInteger(serviceId) || serviceId <= 0) {
     throw new HttpError(400, 'serviceId must be a positive integer');
   }
@@ -193,8 +202,8 @@ export async function createBooking({ serviceId, barberId, startsAt, clientName,
     throw new HttpError(400, 'Некорректный источник записи');
   }
 
-  const trimmedName = clientName?.trim();
-  if (!trimmedName) {
+  const trimmedName = typeof clientName === 'string' ? clientName.trim() : '';
+  if (!trimmedName || trimmedName.length > 80) {
     throw new HttpError(400, 'clientName is required');
   }
 
@@ -221,8 +230,10 @@ export async function createBooking({ serviceId, barberId, startsAt, clientName,
   if (!endsAt) {
     throw new HttpError(400, 'Invalid startsAt value');
   }
+  await assertAvailableTime(serviceId, barberId, normalizedStartsAt);
 
   const created = await transaction(async (client) => {
+    if (client.dialect === 'postgres') await client.one('SELECT id FROM barbers WHERE id = ? FOR UPDATE', [barber.id]);
     if (await findOverlappingTimeBlock(barber.id, normalizedStartsAt, endsAt, client)) {
       throw new HttpError(409, 'Master is unavailable at the selected time');
     }
@@ -276,14 +287,8 @@ export async function rescheduleBooking(bookingId, newStartsAt, { enforceClientP
   if (enforceClientPolicy) assertBookingCanBeChanged(booking.starts_at);
 
   const minutesUntilVisit = (new Date(booking.starts_at).getTime() - Date.now()) / 60_000;
-  if (penalizeClient && minutesUntilVisit < 24 * 60) {
-    await applyClientRatingEvent({
-      phone: booking.client_phone,
-      bookingId,
-      eventType: 'late_reschedule',
-      delta: -0.25,
-    });
-  }
+  if (normalizedStartsAt === booking.starts_at) return mapBooking(await selectBookingById(bookingId));
+  await assertAvailableTime(booking.service_id, booking.barber_id, normalizedStartsAt, bookingId);
 
   const duration = booking.duration_minutes || 30;
   const newEndsAt = addMinutesToDateTime(normalizedStartsAt, duration);
@@ -292,6 +297,7 @@ export async function rescheduleBooking(bookingId, newStartsAt, { enforceClientP
   }
 
   const updated = await transaction(async (client) => {
+    if (client.dialect === 'postgres') await client.one('SELECT id FROM barbers WHERE id = ? FOR UPDATE', [booking.barber_id]);
     if (await findOverlappingTimeBlock(booking.barber_id, normalizedStartsAt, newEndsAt, client)) {
       throw new HttpError(409, 'Мастер недоступен в выбранное время');
     }
@@ -310,5 +316,8 @@ export async function rescheduleBooking(bookingId, newStartsAt, { enforceClientP
     return selectBookingById(bookingId, client);
   });
 
+  if (penalizeClient && minutesUntilVisit < 24 * 60) {
+    await applyClientRatingEvent({ phone: booking.client_phone, bookingId, eventType: 'late_reschedule', delta: -0.25 });
+  }
   return mapBooking(updated);
 }

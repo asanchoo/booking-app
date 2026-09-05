@@ -28,8 +28,7 @@ router.get('/me', async (req, res, next) => {
 router.post('/me/photo', rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message: 'Слишком много попыток загрузки. Попробуйте позже.' }), (req, res, next) => {
   barberPhotoUpload.single('photo')(req, res, async (uploadError) => {
     if (uploadError) {
-      const error = new Error(uploadError.code === 'LIMIT_FILE_SIZE' ? 'Размер фотографии не должен превышать 5 МБ' : uploadError.message);
-      error.status = 400;
+      const error = new HttpError(400, uploadError.code === 'LIMIT_FILE_SIZE' ? 'Размер фотографии не должен превышать 5 МБ' : uploadError.message);
       return next(error);
     }
     try {

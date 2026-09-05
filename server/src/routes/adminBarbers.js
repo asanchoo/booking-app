@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { database } from '../db/database.js';
 import { validatePayload } from '../utils/validation.js';
+import { HttpError } from '../utils/httpError.js';
 import { barberPhotoUpload, replaceBarberPhoto } from '../services/barberPhotoService.js';
 
 const router = Router();
@@ -16,7 +17,7 @@ router.get('/', async (req, res, next) => {
       FROM barbers b
       LEFT JOIN barber_accounts ba ON ba.barber_id = b.id
       LEFT JOIN barber_reviews r ON r.barber_id = b.id
-      GROUP BY b.id
+      GROUP BY b.id, ba.username
       ORDER BY b.sort_order ASC
     `);
     res.json(barbers.map((barber) => ({ ...barber, reviewCount: Number(barber.reviewCount) })));
@@ -157,8 +158,7 @@ router.delete('/:id', async (req, res, next) => {
 router.post('/:id/photo', (req, res, next) => {
   barberPhotoUpload.single('photo')(req, res, async (uploadErr) => {
     if (uploadErr) {
-      const err = new Error(uploadErr.message);
-      err.status = 400;
+      const err = new HttpError(400, uploadErr.message);
       return next(err);
     }
     try {

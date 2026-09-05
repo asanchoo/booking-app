@@ -30,7 +30,7 @@ function clearRoleCookies(res, keepRole) {
 router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Слишком много попыток входа. Попробуйте через 15 минут.' }), async (req, res) => {
   const { login, password } = req.body || {};
 
-  if (!login || !password) {
+  if (typeof login !== 'string' || typeof password !== 'string' || !login.trim() || !password || login.length > 100 || password.length > 72) {
     return res.status(401).json({ error: 'Введите логин и пароль' });
   }
 

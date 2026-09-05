@@ -36,7 +36,7 @@ async function isMasterAssignedToService(serviceId, barberId) {
 
 async function getConfirmedBookings(barberId, fromDateTime, toDateTime) {
   return database.all(`
-      SELECT starts_at AS startsAt, ends_at AS endsAt
+      SELECT id, starts_at AS startsAt, ends_at AS endsAt
       FROM bookings
       WHERE status = 'confirmed'
         AND barber_id = ?
@@ -92,7 +92,7 @@ function generateDaySlots(date, settings, durationMinutes) {
   return slots;
 }
 
-export async function getAvailableSlots(serviceId, barberId, fromParam, toParam) {
+export async function getAvailableSlots(serviceId, barberId, fromParam, toParam, excludedBookingId = null) {
   const service = await getActiveService(serviceId);
   if (!service) {
     throw new HttpError(404, 'Service not found');
@@ -118,6 +118,9 @@ export async function getAvailableSlots(serviceId, barberId, fromParam, toParam)
   if (fromDate > toDate) {
     throw new HttpError(400, 'from must be on or before to');
   }
+  if (toDate.getTime() - fromDate.getTime() > 62 * 86400000) {
+    throw new HttpError(400, 'Выберите период не больше 62 дней');
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -125,7 +128,8 @@ export async function getAvailableSlots(serviceId, barberId, fromParam, toParam)
 
   const settings = await getBusinessSettings();
   const now = formatDateTime(new Date());
-  const rangeEndDateTime = buildDateTime(toDate, settings.work_end);
+  const overnight = parseTimeToMinutes(settings.work_end) <= parseTimeToMinutes(settings.work_start);
+  const rangeEndDateTime = buildDateTime(overnight ? addDays(toDate, 1) : toDate, settings.work_end);
   const rangeStartDateTime = buildDateTime(rangeStart, settings.work_start);
   const [existingBookings, timeBlocks] = await Promise.all([
     getConfirmedBookings(barber.id, rangeStartDateTime, rangeEndDateTime),
@@ -143,7 +147,7 @@ export async function getAvailableSlots(serviceId, barberId, fromParam, toParam)
       }
 
       const hasConflict = existingBookings.some((booking) =>
-        overlaps(slot.startsAt, slot.endsAt, booking.startsAt, booking.endsAt),
+        booking.id !== excludedBookingId && overlaps(slot.startsAt, slot.endsAt, booking.startsAt, booking.endsAt),
       );
 
       const isBlocked = timeBlocks.some((block) =>

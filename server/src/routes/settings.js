@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { database, transaction } from '../db/database.js';
 import { validatePayload } from '../utils/validation.js';
 import { clearCache } from '../services/settings.js';
+import { HttpError } from '../utils/httpError.js';
 
 const router = Router();
 
@@ -26,14 +27,15 @@ router.get('/', async (req, res, next) => {
 router.put('/', async (req, res, next) => {
   try {
     const schema = {
-      workStart: { required: true, type: 'string', regex: /^\d{2}:\d{2}$/ },
-      workEnd: { required: true, type: 'string', regex: /^\d{2}:\d{2}$/ },
+      workStart: { required: true, type: 'string', regex: /^([01]\d|2[0-3]):[0-5]\d$/ },
+      workEnd: { required: true, type: 'string', regex: /^([01]\d|2[0-3]):[0-5]\d$/ },
       slotStepMinutes: { required: true, type: 'integer' },
       workDays: { required: true, type: 'string', regex: /^[1-7](,[1-7])*$/ },
     };
     validatePayload(schema, req.body);
 
     const { workStart, workEnd, slotStepMinutes, workDays } = req.body;
+    if (Number(slotStepMinutes) < 5 || Number(slotStepMinutes) > 120) throw new HttpError(400, 'Шаг записи должен быть от 5 до 120 минут');
 
     await transaction(async (client) => {
       const upsert = (key, value) => client.run(`

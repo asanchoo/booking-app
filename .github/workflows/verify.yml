@@ -13,11 +13,11 @@ jobs:
         env:
           POSTGRES_USER: booking
           POSTGRES_PASSWORD: booking_test_password
-          POSTGRES_DB: booking_test
+          POSTGRES_DB: booking_regression
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U booking -d booking_test"
+          --health-cmd "pg_isready -U booking -d booking_regression"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -37,7 +37,11 @@ jobs:
       - name: Verify PostgreSQL schema and seed
         run: npm run db:setup --prefix server
         env:
-          DATABASE_URL: postgresql://booking:booking_test_password@127.0.0.1:5432/booking_test?sslmode=disable
+          DATABASE_URL: postgresql://booking:booking_test_password@127.0.0.1:5432/booking_regression?sslmode=disable
+      - name: Verify booking and role workflows on PostgreSQL
+        run: node server/scripts/regression.mjs
+        env:
+          DATABASE_URL: postgresql://booking:booking_test_password@127.0.0.1:5432/booking_regression?sslmode=disable
       - run: npm test --prefix server
       - run: npm run build --prefix client
       - run: node --check server/index.js

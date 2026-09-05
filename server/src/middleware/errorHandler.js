@@ -11,6 +11,10 @@ export function errorHandler(error, req, res, next) {
     return;
   }
 
+  if (error.type === 'entity.parse.failed' || error.type === 'entity.too.large') {
+    return res.status(error.type === 'entity.too.large' ? 413 : 400).json({ error: 'Некорректное тело запроса' });
+  }
+
   console.error(error);
   res.status(500).json({ error: 'Internal server error' });
 }

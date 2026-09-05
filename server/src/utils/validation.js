@@ -5,7 +5,10 @@
  * Throws an Error with status 400 and a descriptive message when validation fails.
  * schema: { fieldName: { required: true|false, type: 'string'|'integer', regex: /.../ } }
  */
+import { HttpError } from './httpError.js';
+
 export function validatePayload(schema, data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new HttpError(400, 'Ожидается объект с данными');
   const errors = [];
   for (const [field, rules] of Object.entries(schema)) {
     const value = data[field];
@@ -29,8 +32,6 @@ export function validatePayload(schema, data) {
     }
   }
   if (errors.length) {
-    const err = new Error(errors.join(', '));
-    err.status = 400;
-    throw err;
+    throw new HttpError(400, errors.join(', '));
   }
 }

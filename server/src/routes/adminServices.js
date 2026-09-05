@@ -41,6 +41,7 @@ router.post('/', async (req, res, next) => {
   try {
     validatePayload({ name: { required: true, type: 'string' }, description: { required: false, type: 'string' }, durationMinutes: { required: true, type: 'integer' }, priceCents: { required: true, type: 'integer' } }, req.body);
     const masterIds = await normalizeMasterIds(req.body.masterIds);
+    if (Number(req.body.durationMinutes) < 1 || Number(req.body.durationMinutes) > 1440) throw new HttpError(400, 'Длительность должна быть от 1 до 1440 минут');
     const name = req.body.name.trim();
     const description = (req.body.description || '').trim();
     if (!name) throw new HttpError(400, 'Название услуги обязательно');
@@ -60,6 +61,8 @@ router.put('/:id', async (req, res, next) => {
     if (!Number.isInteger(serviceId) || serviceId <= 0 || !await getService(serviceId)) throw new HttpError(404, 'Услуга не найдена');
     validatePayload({ name: { required: false, type: 'string' }, description: { required: false, type: 'string' }, durationMinutes: { required: false, type: 'integer' }, priceCents: { required: false, type: 'integer' }, isActive: { required: false, type: 'integer' } }, req.body);
     const fields = [], values = [];
+    if (req.body.durationMinutes !== undefined && (Number(req.body.durationMinutes) < 1 || Number(req.body.durationMinutes) > 1440)) throw new HttpError(400, 'Длительность должна быть от 1 до 1440 минут');
+    if (req.body.isActive !== undefined && ![0, 1].includes(req.body.isActive)) throw new HttpError(400, 'Некорректный статус услуги');
     if (req.body.name !== undefined) { const name = req.body.name.trim(); if (!name) throw new HttpError(400, 'Название услуги обязательно'); fields.push('name = ?'); values.push(name); }
     if (req.body.description !== undefined) { const description = req.body.description.trim(); if (description.length > 500) throw new HttpError(400, 'Описание не должно быть длиннее 500 символов'); fields.push('description = ?'); values.push(description); }
     if (req.body.durationMinutes !== undefined) { fields.push('duration_minutes = ?'); values.push(req.body.durationMinutes); }

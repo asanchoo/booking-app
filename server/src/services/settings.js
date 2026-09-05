@@ -12,5 +12,5 @@ export async function getBusinessSettings() {
 }
 
 export function getWorkDays(settings) {
-  return settings.work_days.split(',').map((day) => Number(day.trim()));
+  return settings.work_days.split(',').map((day) => Number(day.trim()) % 7);
 }

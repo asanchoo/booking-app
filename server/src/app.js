@@ -21,6 +21,7 @@ import adminReviewsRouter from './routes/adminReviews.js';
 import adminBookingsRouter from './routes/adminBookings.js';
 import aiAssistantRouter from './routes/aiAssistant.js';
 import integrationsRouter from './routes/integrations.js';
+import { corsOptions } from './middleware/corsOptions.js';
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,21 +31,10 @@ if (process.env.TRUST_PROXY === 'true') {
   app.set('trust proxy', 1);
 }
 
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://127.0.0.1:5176')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origin is not allowed by CORS'));
-  },
-  credentials: true,
-}));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

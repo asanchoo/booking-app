@@ -32,7 +32,7 @@ router.post('/register', rateLimit({ windowMs: 10 * 60 * 1000, max: 30, message:
       return res.status(400).json({ error: 'Укажите корректный номер телефона' });
     }
 
-    if (!password || password.length < 6 || password.length > 72) {
+    if (typeof password !== 'string' || password.length < 6 || password.length > 72) {
       return res.status(400).json({ error: 'Пароль должен содержать от 6 до 72 символов' });
     }
 
@@ -177,7 +177,7 @@ router.post('/forgot-password/reset', async (req, res, next) => {
       return res.status(400).json({ error: 'Укажите телефон, код и новый пароль' });
     }
 
-    if (newPassword.length < 6) {
+    if (typeof newPassword !== 'string' || newPassword.length < 6 || newPassword.length > 72) {
       return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
     }
 

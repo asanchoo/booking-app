@@ -1,3 +1,6 @@
+// Stored appointment times are salon-local. Keep serverless and local parsing aligned.
+process.env.TZ ||= 'Asia/Almaty';
+
 const PLACEHOLDER_VALUES = new Set([
   '',
   'your_jwt_secret_here',
