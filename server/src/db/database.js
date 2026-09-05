@@ -1,4 +1,8 @@
 import pg from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 import { getDatabaseUrl, getPostgresConnectionConfig } from './databaseUrl.js';
 
 // PostgreSQL returns int8/numeric values as strings by default. All identifiers,
@@ -10,6 +14,18 @@ pg.types.setTypeParser(1700, Number);
 const databaseUrl = getDatabaseUrl();
 export const databaseDialect = databaseUrl ? 'postgres' : 'sqlite';
 
+function createSqliteDatabase() {
+  const require = createRequire(import.meta.url);
+  const Database = require('better-sqlite3');
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const dataDir = path.resolve(here, '../../../data');
+  fs.mkdirSync(dataDir, { recursive: true });
+  const connection = new Database(path.join(dataDir, 'booking.db'));
+  connection.pragma('journal_mode = WAL');
+  connection.pragma('foreign_keys = ON');
+  return connection;
+}
+
 const pool = databaseUrl
   ? new pg.Pool({
       ...getPostgresConnectionConfig(databaseUrl),
@@ -18,7 +34,7 @@ const pool = databaseUrl
       connectionTimeoutMillis: 10_000,
     })
   : null;
-const sqlite = pool ? null : (await import('./connection.js')).db;
+const sqlite = pool ? null : createSqliteDatabase();
 
 function postgresSql(sql) {
   let index = 0;
