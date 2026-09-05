@@ -24,6 +24,7 @@
 | P0 | Admin sidebar consumed permanent horizontal space and made the workspace unusable. | Sidebar becomes a fixed, horizontally scrollable bottom navigation; workspace uses the full width. |
 | P0 | Appointments table was clipped and hid fields/actions. | Rows become readable two-column booking cards with labels; the page has no horizontal document overflow. |
 | P1 | Header logo and account actions collided or wrapped. | Header uses compact mobile labels, icon sizing, and constrained spacing. |
+| P1 | Mobile Safari text scaling or browser zoom could switch the header back to oversized desktop labels. | Text autosizing is normalized and the compact header also activates for coarse-pointer touch devices. |
 | P1 | Dashboard title, summary card, and metrics were clipped. | Title scales responsively; quick actions form a compact grid; metrics stack into full-width cards. |
 | P2 | Modal and success layouts retained desktop dimensions. | Booking modal becomes a bottom sheet and success/account content fills the mobile width. |
 

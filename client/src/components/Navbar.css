@@ -80,7 +80,7 @@
 
 .nav-label-mobile { display: none; }
 
-@media (max-width: 700px) {
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
   .navbar-header { position: sticky; }
   .navbar-container { width: 100%; min-width: 0; padding: 10px 12px; gap: 10px; }
   .navbar-brand { min-width: 0; gap: 8px; }
@@ -97,4 +97,10 @@
   .brand-name { font-size: .78rem; }
   .nav-item { padding-inline: 7px; }
   .nav-item span { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+}
+
+@media (max-width: 350px) {
+  .brand-name { font-size: 0; }
+  .brand-name::after { content: 'BS'; font-size: .78rem; }
+  .navbar-container { padding-inline: 8px; gap: 6px; }
 }
