@@ -117,7 +117,8 @@
 .slots-three-row {
   flex: 1;
   display: flex;
-  gap: 6px;
+  min-width: 0;
+  gap: 8px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -126,9 +127,33 @@
   display: none;
 }
 
+.quick-slot-group {
+  display: flex;
+  min-width: 0;
+  flex: 1 0 auto;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-slot-date {
+  overflow: hidden;
+  color: var(--text-muted, #71717A);
+  font-size: .7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.quick-slot-times {
+  display: flex;
+  gap: 6px;
+}
+
 .quick-slot-chip {
-  flex: 1;
-  min-width: max-content;
+  flex: 1 1 72px;
+  min-width: 68px;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -735,8 +735,11 @@
   .service-card, .barber-card-v2 { width: 100%; min-width: 0; }
   .customer-page .service-card { padding: 17px; border-radius: 16px; }
   .barber-card-v2 { padding: 17px; gap: 13px; border-radius: 16px; }
-  .barber-slot-action-v2 { min-width: 0; gap: 7px; }
-  .quick-slot-chip { min-width: 84px; }
+  .barber-slot-action-v2 { min-width: 0; align-items: flex-end; gap: 8px; }
+  .slots-three-row { flex-wrap: wrap; overflow: visible; }
+  .quick-slot-group { flex: 1 1 100%; }
+  .quick-slot-times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick-slot-chip { min-width: 0; min-height: 40px; padding-inline: 6px; }
   .cp-progress { width: 100%; max-width: 390px; margin-inline: auto; }
   .cp-selected-bar { width: 100%; min-width: 0; }
   .cp-bar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

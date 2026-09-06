@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Clock, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Coffee } from 'lucide-react';
 
 function toDateStr(d = new Date()) {
@@ -10,6 +10,14 @@ function formatDisplayDate(d) {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
+  }).format(d);
+}
+
+function formatCompactDate(d) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
   }).format(d);
 }
 
@@ -29,8 +37,12 @@ const TIME_SLOTS = [
 export default function CalendarGrid({ barbers = [], bookings = [], timeBlocks = [], selectedBooking, onSelectBooking }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showDateInput, setShowDateInput] = useState(false);
+  const [mobileBarberId, setMobileBarberId] = useState('');
 
   const activeBarbers = barbers.filter((b) => b.isActive !== 0);
+  const visibleMobileBarberId = activeBarbers.some((b) => String(b.id) === String(mobileBarberId))
+    ? String(mobileBarberId)
+    : String(activeBarbers[0]?.id || '');
   const currentDateStr = toDateStr(currentDate);
 
   const getInitials = (name) => {
@@ -78,6 +90,7 @@ export default function CalendarGrid({ barbers = [], bookings = [], timeBlocks =
 
           <div className="date-nav-label">
             <span className="date-nav-text">{formatDisplayDate(currentDate)}</span>
+            <span className="date-nav-text compact">{formatCompactDate(currentDate)}</span>
             {isToday && <span className="today-badge">Сегодня</span>}
           </div>
 
@@ -126,8 +139,18 @@ export default function CalendarGrid({ barbers = [], bookings = [], timeBlocks =
         </div>
       </div>
 
+      {/* On phones, one selected master is easier to scan than a compressed table. */}
+      {activeBarbers.length > 0 && (
+        <label className="mobile-master-picker">
+          <span>Расписание мастера</span>
+          <select value={visibleMobileBarberId} onChange={(event) => setMobileBarberId(event.target.value)}>
+            {activeBarbers.map((barber) => <option key={barber.id} value={String(barber.id)}>{barber.name}</option>)}
+          </select>
+        </label>
+      )}
+
       {/* Grid */}
-      <div className="calendar-grid-wrapper">
+      <div className="calendar-grid-wrapper" role="region" aria-label="Расписание всех мастеров" tabIndex="0">
         <div className="calendar-grid-table">
           {/* Header row */}
           <div className="grid-header-row">
@@ -136,7 +159,7 @@ export default function CalendarGrid({ barbers = [], bookings = [], timeBlocks =
               <span>Время</span>
             </div>
             {activeBarbers.map((b) => (
-              <div key={b.id} className="grid-barber-header">
+              <div key={b.id} className={`grid-barber-header ${String(b.id) !== visibleMobileBarberId ? 'mobile-hidden' : ''}`}>
                 <div className="grid-barber-avatar">
                   {b.photoUrl ? (
                     <img
@@ -181,7 +204,7 @@ export default function CalendarGrid({ barbers = [], bookings = [], timeBlocks =
                   return (
                     <div
                       key={`${b.id}-${timeSlot}`}
-                      className={`grid-slot-cell ${booking ? 'has-booking' : timeBlock ? 'has-time-block' : 'empty'}`}
+                      className={`grid-slot-cell ${String(b.id) !== visibleMobileBarberId ? 'mobile-hidden' : ''} ${booking ? 'has-booking' : timeBlock ? 'has-time-block' : 'empty'}`}
                     >
                       {booking && (
                         <div

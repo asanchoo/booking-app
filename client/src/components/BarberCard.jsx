@@ -20,47 +20,35 @@ export default function BarberCard({
       .slice(0, 2);
   };
 
-  const formatSlotButtonText = (slot, index, allSlots) => {
+  const slotDateKey = (slot) => {
     const slotTime = slot.startsAt || slot.start_time;
     if (!slotTime) return '';
     const date = new Date(slotTime);
-    const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  };
+
+  const formatSlotDate = (slot) => {
+    const date = new Date(slot.startsAt || slot.start_time);
     const today = new Date();
     const isToday =
       date.getDate() === today.getDate() &&
       date.getMonth() === today.getMonth() &&
       date.getFullYear() === today.getFullYear();
-
-    if (index === 0) {
-      if (isToday) {
-        return `Сегодня ${timeStr}`;
-      }
-      const dayName = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).format(date);
-      return `${dayName} ${timeStr}`;
-    }
-
-    // For index 1 and 2: check if same date as previous slot
-    const prevSlotTime = allSlots[index - 1].startsAt || allSlots[index - 1].start_time;
-    const prevDate = new Date(prevSlotTime);
-    const isSameDate =
-      date.getDate() === prevDate.getDate() &&
-      date.getMonth() === prevDate.getMonth() &&
-      date.getFullYear() === prevDate.getFullYear();
-
-    if (isSameDate) {
-      return timeStr;
-    }
-
-    if (isToday) {
-      return `Сегодня ${timeStr}`;
-    }
-
-    const dayName = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).format(date);
-    return `${dayName} ${timeStr}`;
+    if (isToday) return 'Сегодня';
+    return new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).format(date);
   };
 
+  const formatSlotTime = (slot) => new Date(slot.startsAt || slot.start_time)
+    .toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
   const top3Slots = nearestSlots.slice(0, 3);
+  const slotGroups = top3Slots.reduce((groups, slot) => {
+    const key = slotDateKey(slot);
+    const current = groups.find((group) => group.key === key);
+    if (current) current.slots.push(slot);
+    else groups.push({ key, label: formatSlotDate(slot), slots: [slot] });
+    return groups;
+  }, []);
   const isModalOpenForThisBarber = modalState?.isOpen && modalState?.barberId === barber.id;
 
   return (
@@ -109,17 +97,24 @@ export default function BarberCard({
       <div className="barber-slot-action-v2">
         {top3Slots.length > 0 ? (
           <div className="slots-three-row">
-            {top3Slots.map((slot, idx) => (
-              <button
-                key={slot.startsAt || slot.start_time}
-                type="button"
-                className="quick-slot-chip"
-                onClick={() => onQuickBook(barber, slot)}
-                title="Записаться на это время"
-              >
-                <Clock size={12} />
-                <span>{formatSlotButtonText(slot, idx, top3Slots)}</span>
-              </button>
+            {slotGroups.map((group) => (
+              <div className="quick-slot-group" key={group.key}>
+                <span className="quick-slot-date">{group.label}</span>
+                <div className="quick-slot-times">
+                  {group.slots.map((slot) => (
+                    <button
+                      key={slot.startsAt || slot.start_time}
+                      type="button"
+                      className="quick-slot-chip"
+                      onClick={() => onQuickBook(barber, slot)}
+                      title={`Записаться: ${group.label}, ${formatSlotTime(slot)}`}
+                    >
+                      <Clock size={12} />
+                      <span>{formatSlotTime(slot)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         ) : (

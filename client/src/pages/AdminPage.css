@@ -405,7 +405,7 @@
 .panel-title-bar h2 { font-size: 1.05rem; font-weight: 700; color: var(--adm-text); }
 
 /* Date navigation bar */
-.calendar-grid-container { display: flex; flex-direction: column; gap: 0; }
+.calendar-grid-container { display: flex; min-width: 0; flex-direction: column; gap: 0; }
 
 .calendar-date-nav {
   display: flex;
@@ -472,6 +472,10 @@
   text-transform: capitalize;
 }
 
+.date-nav-text.compact { display: none; }
+
+.mobile-master-picker { display: none; }
+
 .today-badge {
   font-size: 0.7rem;
   font-weight: 700;
@@ -503,7 +507,11 @@
 
 /* Grid */
 .calendar-grid-wrapper {
+  width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .calendar-grid-table {
@@ -1675,14 +1683,37 @@
   .phone-cell, .barber-cell, .service-badge { min-width: 0; }
   .phone-cell span, .barber-cell span, .service-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .calendar-grid-table { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
-  .section-card-panel { max-width: 100%; }
+  .calendar-date-nav {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px;
+  }
+  .date-nav-left { display: grid; min-width: 0; grid-template-columns: 40px minmax(0,1fr) 40px; gap: 7px; }
+  .date-nav-left .date-nav-btn { width: 40px; min-width: 40px; padding: 0; }
+  .date-nav-label { min-width: 0; justify-content: center; gap: 5px; }
+  .date-nav-text:not(.compact) { display: none; }
+  .date-nav-text.compact { display: block; overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+  .today-badge { display: none; }
+  .date-nav-right { gap: 6px; }
+  .date-nav-right .date-nav-btn { height: 40px; }
+  .today-btn { padding-inline: 9px; }
+  .mobile-master-picker { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--adm-border); background: #FFF; color: var(--adm-muted); font-size: .7rem; font-weight: 700; }
+  .mobile-master-picker select { width: 100%; min-width: 0; min-height: 40px; box-sizing: border-box; padding: 7px 30px 7px 10px; border: 1px solid var(--adm-border); border-radius: 9px; background: var(--adm-input); color: var(--adm-text); font: inherit; font-size: 16px; }
+  .calendar-grid-wrapper { max-width: 100%; }
+  .calendar-grid-table { width: 100%; min-width: 100%; max-width: none; overflow: visible; }
+  .grid-corner-cell, .grid-time-cell { width: 68px; min-width: 68px; padding-inline: 9px; }
+  .grid-barber-header, .grid-slot-cell { min-width: 0; }
+  .grid-barber-header.mobile-hidden, .grid-slot-cell.mobile-hidden { display: none; }
+  .section-card-panel { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden; }
   .services-cards-grid, .barbers-cards-grid, .clients-grid { grid-template-columns: 1fr; }
   .section-action-bar { align-items: stretch; flex-direction: column; }
   .section-action-bar button { width: 100%; justify-content: center; }
   .reviews-summary-grid, .analytics-metrics-grid { grid-template-columns: 1fr; }
   .settings-fields-grid { grid-template-columns: minmax(0, 1fr); }
-  .settings-card { min-width: 0; padding: 18px 16px; }
+  .settings-card { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; box-sizing: border-box; padding: 18px 16px; }
+  input.settings-input[type="time"] { display: block; width: -webkit-fill-available; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; }
+  input.settings-input[type="time"]::-webkit-date-and-time-value { min-width: 0; text-align: left; }
 }
 
 @media (max-height: 700px) {

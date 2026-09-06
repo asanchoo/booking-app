@@ -46,6 +46,10 @@
 | P1 | Working-hour controls could extend beyond the settings card on narrow screens. | Grid children and controls can shrink to the viewport, and the mobile settings card uses contained padding. |
 | P2 | Service prices showed both a dollar icon and the tenge symbol. | Prices now display only the correct `₸` currency symbol. |
 | P2 | Admin forms contained implementation-oriented hints and jargon. | Master fields and dashboard/export labels now use concise business-facing language. |
+| P1 | The date inside the first quick-booking chip was clipped on a narrow phone. | Quick slots are grouped under a separate full date label; time buttons remain compact and evenly sized. |
+| P0 | Safari's native time fields could ignore the grid width and extend beyond the settings card. | Mobile time controls use a contained WebKit width and appearance while retaining their native picker behavior. |
+| P0 | The overview calendar compressed or clipped the final master column. | Mobile shows one complete schedule column with a master selector; desktop still shows the full multi-master grid. |
+| P1 | Long calendar dates and the Today control competed for one row. | Mobile uses a short date and a compact two-part navigation layout with 40 px touch targets. |
 
 ## Verification
 
