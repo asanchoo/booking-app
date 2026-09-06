@@ -2,34 +2,45 @@
 
 ## Scope
 
-- Public booking flow at 390 × 844 CSS pixels.
-- Admin overview and appointments at 390 × 844 CSS pixels.
+- Public booking flow and service/master selection.
+- Login and customer-account layouts.
+- Master workspace, schedule, filters, breaks, and dialogs.
+- Admin overview, appointments, catalog, analytics, settings, and creation dialogs.
+- Viewports: 320 × 700, 375 × 812, 390 × 844, and 430 × 932 CSS pixels.
 
 ## Reference captures
 
 - `/Users/asanali/Downloads/BarberShop - Онлайн запись.png`
 - `/Users/asanali/Downloads/IMG_8754.PNG`
 - `/Users/asanali/Downloads/IMG_8755.PNG`
+- `/var/folders/by/hmh8q6650_lckr20ybnfjvnh0000gn/T/codex-clipboard-6890d85b-307c-4021-b38c-fcec38e6c725.png`
 
 ## Implementation reviewed
 
-- Local prototype: `http://127.0.0.1:5176/`
-- Runtime captures were inspected in the Codex in-app browser at 390 × 844.
+- Local prototype: `http://localhost:5176/`
+- Implementation captures were reviewed inline in the Codex in-app browser at 390 × 844 alongside the supplied reference capture.
 
 ## Visible comparison and fixes
 
 | Priority | Reference issue | Implementation result |
 | --- | --- | --- |
-| P0 | Public page occupied only part of the screen and exposed the dark body on the right. | Page and root containers now stay within the viewport; mobile scrollbars no longer reserve a dark strip. |
-| P0 | Admin sidebar consumed permanent horizontal space and made the workspace unusable. | Sidebar becomes a fixed, horizontally scrollable bottom navigation; workspace uses the full width. |
-| P0 | Appointments table was clipped and hid fields/actions. | Rows become readable two-column booking cards with labels; the page has no horizontal document overflow. |
-| P1 | Header logo and account actions collided or wrapped. | Header uses compact mobile labels, icon sizing, and constrained spacing. |
-| P1 | Mobile Safari text scaling or browser zoom could switch the header back to oversized desktop labels. | Text autosizing is normalized and the compact header also activates for coarse-pointer touch devices. |
-| P1 | Dashboard title, summary card, and metrics were clipped. | Title scales responsively; quick actions form a compact grid; metrics stack into full-width cards. |
-| P2 | Modal and success layouts retained desktop dimensions. | Booking modal becomes a bottom sheet and success/account content fills the mobile width. |
+| P0 | Public page occupied only part of the screen and exposed a black strip on the right. | Root, page, booking, service, master, slot, and form containers are constrained to the viewport; document overflow is eliminated. |
+| P0 | Header controls collided and the account action disappeared unless the page was zoomed out. | Mobile gets a dedicated 58 px top bar with a compact brand/account action and a separate persistent bottom navigation. |
+| P0 | Admin sidebar permanently consumed horizontal space and clipped workspace content. | On mobile and touch devices the sidebar becomes a fixed bottom navigation and the workspace receives the full viewport width. |
+| P0 | Appointment tables and filters extended beyond the screen. | Rows become labelled mobile cards; controls stack or use contained horizontal scrolling without widening the document. |
+| P1 | Add-service and add-master dialogs were clipped and offset inside the tab content. | Completed tab animations no longer retain a transformed containing block; dialogs cover the viewport and open as scrollable bottom sheets. |
+| P1 | Client/master actions and scheduling controls were crowded or off-screen. | Cards stack, action groups use responsive grids, datetime controls remain touch-friendly, and page bottoms reserve space for fixed navigation. |
+| P1 | The floating assistant covered mobile actions. | The assistant is positioned above the persistent bottom navigation. |
+| P2 | Toasts and account dialogs could sit behind navigation or retain desktop dimensions. | Toasts clear the bottom bar; cancellation, rescheduling, login, and review dialogs use mobile-safe widths and bottom-sheet behavior. |
 
 ## Verification
 
-- `document.documentElement.scrollWidth <= window.innerWidth` passed on public booking, admin overview, and appointments.
-- Client production build passed.
-- Remaining horizontal scrolling is deliberate and contained inside filter tabs, calendar grids, and the admin bottom navigation.
+- `document.documentElement.scrollWidth <= window.innerWidth` passed at 320, 375, 390, and 430 px for the public flow.
+- The same overflow check passed for admin overview, appointments, services, and service creation at 390 px.
+- Admin service dialog measured exactly 390 px wide and 844 px high at the overlay level, with its card contained inside the viewport.
+- Client production build passed with Vite.
+- Server suite passed: 25/25 tests.
+- ESLint was not runnable because the repository currently declares an `eslint` script without installing ESLint; the production build remains clean.
+- Remaining horizontal scrolling is intentional and locally contained inside tab strips, calendars, and the admin bottom navigation.
+
+Final result: passed

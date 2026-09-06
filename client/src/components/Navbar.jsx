@@ -41,8 +41,9 @@ export default function Navbar() {
   const canBook = role !== 'admin' && role !== 'barber';
 
   return (
+    <>
     <header className="navbar-header">
-      <div className="navbar-container">
+      <div className="navbar-container navbar-desktop">
         <Link to="/" className="navbar-brand">
           <div className="brand-icon">
             <Scissors size={22} className="scissors-icon" />
@@ -74,6 +75,34 @@ export default function Navbar() {
           </Link>
         </nav>
       </div>
+
+      <div className="navbar-mobile">
+        <Link to="/" className="navbar-mobile-brand" aria-label="BARBERSHOP — главная">
+          <span className="navbar-mobile-mark"><Scissors size={19} /></span>
+          <span>BARBER<strong>SHOP</strong></span>
+        </Link>
+        <Link
+          to={getAccountLink()}
+          className={`navbar-mobile-account ${isAccountActive ? 'active' : ''}`}
+        >
+          {role === 'admin' ? <ShieldCheck size={17} /> : <User size={17} />}
+          <span>{getMobileAccountLabel()}</span>
+        </Link>
+      </div>
+
     </header>
+    {canBook && (
+      <nav className="customer-mobile-nav" aria-label="Основная навигация">
+        <Link to="/" className={location.pathname === '/' ? 'active' : ''}>
+          <CalendarCheck size={20} />
+          <span>Записаться</span>
+        </Link>
+        <Link to={getAccountLink()} className={isAccountActive ? 'active' : ''}>
+          <User size={20} />
+          <span>{authenticated ? 'Мои записи' : 'Кабинет'}</span>
+        </Link>
+      </nav>
+    )}
+    </>
   );
 }

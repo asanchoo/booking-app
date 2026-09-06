@@ -237,3 +237,10 @@
 .login-back-link:hover {
   color: #C5A55A;
 }
+
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .login-page-container { width: 100%; min-width: 0; min-height: calc(100dvh - 58px); align-items: flex-start; padding: 22px 14px calc(94px + env(safe-area-inset-bottom)); }
+  .login-card { max-width: 430px; padding: 28px 20px; border-radius: 18px; }
+  .login-brand-mark { margin-bottom: 22px; }
+  .login-subtitle { margin-bottom: 22px; }
+}

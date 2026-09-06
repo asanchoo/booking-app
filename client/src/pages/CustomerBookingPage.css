@@ -650,14 +650,14 @@
 }
 
 /* ── Responsive ─────────────────────────── */
-@media (max-width: 640px) {
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
   .cp-wrap {
     width: 100%;
     max-width: none;
-    padding: 26px 16px 88px;
+    padding: 24px 14px calc(106px + env(safe-area-inset-bottom));
   }
 
-  .cp-header { margin-bottom: 28px; }
+  .cp-header { margin-bottom: 24px; }
 
   .cp-brand {
     font-size: 1.8rem;
@@ -672,6 +672,7 @@
   .cp-grid-services,
   .cp-grid-barbers {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .cp-prog-line {
@@ -702,6 +703,7 @@
 
   .cp-heading {
     font-size: 1.15rem;
+    margin-bottom: 14px;
   }
 
   .customer-page .booking-form-card {
@@ -730,5 +732,13 @@
 
   .cp-center { min-height: auto; align-items: flex-start; }
   .cp-success { width: 100%; }
-  .service-card, .barber-card { min-width: 0; }
+  .service-card, .barber-card-v2 { width: 100%; min-width: 0; }
+  .customer-page .service-card { padding: 17px; border-radius: 16px; }
+  .barber-card-v2 { padding: 17px; gap: 13px; border-radius: 16px; }
+  .barber-slot-action-v2 { min-width: 0; gap: 7px; }
+  .quick-slot-chip { min-width: 84px; }
+  .cp-progress { width: 100%; max-width: 390px; margin-inline: auto; }
+  .cp-selected-bar { width: 100%; min-width: 0; }
+  .cp-bar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cp-bar-change { margin-left: auto; }
 }

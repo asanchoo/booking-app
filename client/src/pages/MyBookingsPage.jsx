@@ -79,6 +79,7 @@ function RescheduleModal({ booking, clientPhone, onConfirm, onClose, isLoading }
 
   return (
     <div
+      className="client-sheet-backdrop"
       onClick={onClose}
       style={{
         position: 'fixed',
@@ -94,6 +95,7 @@ function RescheduleModal({ booking, clientPhone, onConfirm, onClose, isLoading }
       }}
     >
       <div
+        className="client-sheet-modal"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#FFFFFF',
@@ -247,6 +249,7 @@ function CancelModal({ booking, onConfirm, onClose, isLoading }) {
 
   return (
     <div
+      className="client-sheet-backdrop"
       onClick={onClose}
       style={{
         position: 'fixed',
@@ -262,6 +265,7 @@ function CancelModal({ booking, onConfirm, onClose, isLoading }) {
       }}
     >
       <div
+        className="client-sheet-modal client-sheet-modal-compact"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#FFFFFF',
@@ -398,7 +402,7 @@ function Toast({ message, type = 'success', onClose }) {
 
   const isSuccess = type === 'success';
   return (
-    <div style={{
+    <div className="client-toast" style={{
       position: 'fixed',
       bottom: '28px',
       left: '50%',
@@ -722,11 +726,11 @@ export default function MyBookingsPage() {
         </div>
       )}
 
-      <div style={{ minHeight: 'calc(100vh - 73px)', background: '#F8F7F3', padding: '32px 20px 80px', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <div className="client-dashboard" style={{ minHeight: 'calc(100vh - 73px)', background: '#F8F7F3', padding: '32px 20px 80px', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+        <div className="client-dashboard-inner" style={{ maxWidth: '800px', margin: '0 auto' }}>
 
           {/* Profile Card Header */}
-          <div style={{
+          <div className="client-profile-card" style={{
             background: '#FFFFFF',
             borderRadius: '20px',
             padding: '24px 28px',
@@ -807,7 +811,7 @@ export default function MyBookingsPage() {
           </div>
 
           {/* Telegram Linking Card */}
-          <div style={{
+          <div className="client-telegram-card" style={{
             background: '#FFFFFF',
             borderRadius: '18px',
             padding: '20px 24px',
@@ -939,7 +943,7 @@ export default function MyBookingsPage() {
           )}
 
           {/* Upcoming Bookings */}
-          <div style={{ marginBottom: '36px' }}>
+          <div className="client-bookings-section" style={{ marginBottom: '36px' }}>
             <h2 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#18181B', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={18} color="#C5A55A" />
               <span>Предстоящие записи ({upcomingBookings.length})</span>
@@ -972,13 +976,14 @@ export default function MyBookingsPage() {
                 </Link>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="client-bookings-list" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 {upcomingBookings.map((b) => {
                   const startsAt = b.startsAt || b.start_time;
                   const price = b.servicePriceCents ? (b.servicePriceCents / 100).toLocaleString('ru-RU') : null;
 
                   return (
                     <div
+                      className="client-booking-card"
                       key={b.id}
                       style={{
                         background: '#FFFFFF',
@@ -1053,7 +1058,7 @@ export default function MyBookingsPage() {
                       </div>
 
                       {/* Buttons: Reschedule & Cancel */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="client-booking-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button
                           onClick={() => setRescheduleTarget(b)}
                           style={{
@@ -1105,7 +1110,7 @@ export default function MyBookingsPage() {
 
           {/* Past / Cancelled Bookings */}
           {pastBookings.length > 0 && (
-            <div>
+            <div className="client-history-section">
               <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#71717A', marginBottom: '16px' }}>
                 История визитов ({pastBookings.length})
               </h2>
@@ -1117,6 +1122,7 @@ export default function MyBookingsPage() {
 
                   return (
                     <div
+                      className="client-history-card"
                       key={b.id}
                       style={{
                         background: '#FFFFFF',

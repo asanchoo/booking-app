@@ -106,3 +106,12 @@
 .empty-icon {
   color: var(--text-dim);
 }
+
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .slot-picker-container { width: 100%; min-width: 0; margin-top: 16px; }
+  .slot-picker-header { align-items: stretch; flex-direction: column; margin-bottom: 14px; }
+  .date-picker-wrapper, .date-picker-input { width: 100%; }
+  .single-day-slots { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+  .slot-button { min-height: 44px; padding: 10px 4px; }
+  .no-slots-message { padding: 28px 16px; }
+}

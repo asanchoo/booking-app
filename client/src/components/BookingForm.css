@@ -169,3 +169,13 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .booking-form-card { width: 100%; min-width: 0; margin-top: 16px; padding: 18px; border-radius: 16px; }
+  .summary-box { padding: 14px; }
+  .summary-item { align-items: flex-start; gap: 12px; }
+  .summary-value { max-width: 62%; text-align: right; overflow-wrap: anywhere; }
+  .booking-form { gap: 16px; }
+  .input-group input { min-height: 46px; font-size: 16px; }
+  .submit-button { min-height: 48px; }
+}

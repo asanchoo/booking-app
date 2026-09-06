@@ -1516,7 +1516,7 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.step-in { animation: stepIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.step-in { animation: stepIn 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
 
 .spin { animation: spinning 1s linear infinite; }
 
@@ -1542,7 +1542,7 @@
 }
 
 /* Mobile workspace: full-width content and a reachable bottom navigation. */
-@media (max-width: 700px) {
+@media (max-width: 700px), (hover: none) and (pointer: coarse) {
   .admin-dashboard-layout {
     display: block;
     width: 100%;
@@ -1674,6 +1674,10 @@
 
   .calendar-grid-table { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
   .section-card-panel { max-width: 100%; }
+  .services-cards-grid, .barbers-cards-grid, .clients-grid { grid-template-columns: 1fr; }
+  .section-action-bar { align-items: stretch; flex-direction: column; }
+  .section-action-bar button { width: 100%; justify-content: center; }
+  .reviews-summary-grid, .analytics-metrics-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-height: 700px) {
