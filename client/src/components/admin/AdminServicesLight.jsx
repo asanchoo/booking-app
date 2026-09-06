@@ -227,7 +227,7 @@ export default function AdminServicesLight({ onAuthError }) {
                 {masters.length === 0 ? (
                   <p className="svc-card-description">Сначала добавьте хотя бы одного активного мастера.</p>
                 ) : masters.map((master) => (
-                  <label key={master.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, fontWeight: 500 }}>
+                  <label key={master.id} className="service-master-option">
                     <input
                       type="checkbox"
                       checked={formMasterIds.includes(master.id)}

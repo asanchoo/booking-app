@@ -1558,8 +1558,8 @@
     inset: auto 0 0 0;
     width: 100%;
     min-width: 0;
-    height: calc(68px + env(safe-area-inset-bottom));
-    padding: 7px 8px env(safe-area-inset-bottom);
+    height: calc(76px + env(safe-area-inset-bottom));
+    padding: 7px 8px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--adm-border);
     border-right: 0;
     box-shadow: 0 -8px 28px rgba(24,24,27,.09);
@@ -1583,7 +1583,7 @@
   .sidebar-nav-item {
     width: 62px;
     min-width: 62px;
-    height: 54px;
+    height: 58px;
     flex-direction: column;
     justify-content: center;
     gap: 3px;
@@ -1610,14 +1610,14 @@
     border-top: 0;
     border-left: 1px solid var(--adm-border);
   }
-  .logout-btn { width: 46px; height: 54px; justify-content: center; padding: 0; border-radius: 10px; }
+  .logout-btn { width: 46px; height: 58px; justify-content: center; padding: 0 0 5px; border-radius: 10px; }
   .logout-btn span { display: none; }
 
   .admin-main-viewport {
     width: 100%;
     min-width: 0;
     min-height: calc(100dvh - 57px);
-    padding: 18px 14px calc(92px + env(safe-area-inset-bottom));
+    padding: 18px 14px calc(102px + env(safe-area-inset-bottom));
     overflow: visible;
   }
   .admin-top-bar { align-items: center; gap: 10px; margin-bottom: 18px; }
@@ -1698,6 +1698,26 @@
     padding: 20px 16px;
   }
   .saas-modal-header { top: -20px; }
+}
+
+.service-master-option {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 9px;
+  color: var(--adm-text);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.service-master-option input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  margin: 0;
+  accent-color: var(--adm-primary);
 }
 
 @keyframes slideUp {

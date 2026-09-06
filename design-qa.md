@@ -14,6 +14,11 @@
 - `/Users/asanali/Downloads/IMG_8754.PNG`
 - `/Users/asanali/Downloads/IMG_8755.PNG`
 - `/var/folders/by/hmh8q6650_lckr20ybnfjvnh0000gn/T/codex-clipboard-6890d85b-307c-4021-b38c-fcec38e6c725.png`
+- `/Users/asanali/Downloads/IMG_8759.PNG`
+- `/Users/asanali/Downloads/IMG_8760.PNG`
+- `/Users/asanali/Downloads/IMG_8761.PNG`
+- `/Users/asanali/Downloads/IMG_8762.PNG`
+- `/Users/asanali/Downloads/IMG_8763.PNG`
 
 ## Implementation reviewed
 
@@ -32,6 +37,11 @@
 | P1 | Client/master actions and scheduling controls were crowded or off-screen. | Cards stack, action groups use responsive grids, datetime controls remain touch-friendly, and page bottoms reserve space for fixed navigation. |
 | P1 | The floating assistant covered mobile actions. | The assistant is positioned above the persistent bottom navigation. |
 | P2 | Toasts and account dialogs could sit behind navigation or retain desktop dimensions. | Toasts clear the bottom bar; cancellation, rescheduling, login, and review dialogs use mobile-safe widths and bottom-sheet behavior. |
+| P0 | Master names in the service dialog were pushed outside the viewport by full-width checkboxes. | Each option now uses a fixed 20 px checkbox column and a wrapping name column; all names remain visible. |
+| P1 | Admin bottom-navigation labels and icons sat too close to the Safari toolbar. | Navigation height and bottom padding were increased; every action retains at least 9 px of measured space below it. |
+| P1 | Master sorting was exposed as a manual technical field. | Sorting is automatic; the admin-only field now records a readable master specialization. |
+| P1 | The master logout label overflowed its undersized icon button. | The mobile logout action is now a single 104 px minimum-width control with aligned icon and label. |
+| P1 | Login and password inputs triggered iOS focus zoom. | Touch layouts enforce a 16 px minimum input, textarea, and select font size, preventing Safari focus zoom. |
 
 ## Verification
 
@@ -40,6 +50,8 @@
 - Admin service dialog measured exactly 390 px wide and 844 px high at the overlay level, with its card contained inside the viewport.
 - Client production build passed with Vite.
 - Server suite passed: 25/25 tests.
+- Docker API is healthy after rebuilding; Telegram runs in webhook mode without a polling conflict.
+- The Docker database contains the new `specialty` column and no longer requires manual sort order from the admin form.
 - ESLint was not runnable because the repository currently declares an `eslint` script without installing ESLint; the production build remains clean.
 - Remaining horizontal scrolling is intentional and locally contained inside tab strips, calendars, and the admin bottom navigation.
 

@@ -35,7 +35,8 @@ try {
   for (const route of ['/auth/me', '/bookings', '/admin/services', '/admin/barbers', '/admin/barbers/time-blocks', '/admin/settings', '/admin/reviews']) await request(route, { cookie: admin });
   await request('/admin/services', { method: 'POST', cookie: admin, data: {}, status: 400 });
   await request('/admin/settings', { method: 'PUT', cookie: admin, data: { workStart: '09:00', workEnd: '18:00', slotStepMinutes: 0, workDays: '1,2' }, status: 400 });
-  const { body: master } = await request('/admin/barbers', { method: 'POST', cookie: admin, status: 201, data: { name: 'Regression master', sortOrder: 99 } });
+  const { body: master } = await request('/admin/barbers', { method: 'POST', cookie: admin, status: 201, data: { name: 'Regression master', specialty: 'Парикмахер' } });
+  assert.equal(master.specialty, 'Парикмахер');
   await request(`/admin/barbers/${master.id}/account`, { method: 'POST', cookie: admin, status: 201, data: { username: 'regression-master', password: 'RegressionPassword42' } });
   const { body: service } = await request('/admin/services', { method: 'POST', cookie: admin, status: 201, data: { name: 'Regression service', description: 'Test', durationMinutes: 30, priceCents: 1000, masterIds: [master.id] } });
   const { body: masters } = await request(`/barbers?serviceId=${service.id}`);
@@ -82,8 +83,6 @@ try {
   const concurrent = await Promise.all([201, 409].map(() => fetch(base + '/api/bookings', { method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, startsAt: slots[3].startsAt }) })));
   assert.deepEqual(concurrent.map(r => r.status).sort(), [201, 409]);
   checks += 2;
-  await request(`/admin/barbers/${master.id}/account`, { method: 'DELETE', cookie: admin });
-  await request('/barber/bookings', { cookie: barber, status: 401 });
   await request(`/admin/services/${service.id}`, { method: 'DELETE', cookie: admin });
   await request('/auth/logout', { method: 'POST', cookie: client });
   const { integrationRegression } = await import('./integrationRegression.mjs');

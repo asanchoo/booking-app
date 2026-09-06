@@ -6,9 +6,8 @@ import {
   deleteBarber,
   uploadBarberPhoto,
   createBarberAccount,
-  deleteBarberAccount,
 } from '../../api/adminApi.js';
-import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle, User, Upload, KeyRound } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle, User, Upload } from 'lucide-react';
 
 export default function AdminBarbersLight({ onAuthError }) {
   const [barbers, setBarbers] = useState([]);
@@ -18,7 +17,7 @@ export default function AdminBarbersLight({ onAuthError }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBarber, setEditingBarber] = useState(null);
   const [formName, setFormName] = useState('');
-  const [formSortOrder, setFormSortOrder] = useState('0');
+  const [formSpecialty, setFormSpecialty] = useState('Мастер салона');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [formAccountUsername, setFormAccountUsername] = useState('');
@@ -55,7 +54,7 @@ export default function AdminBarbersLight({ onAuthError }) {
   const openCreate = () => {
     setEditingBarber(null);
     setFormName('');
-    setFormSortOrder('0');
+    setFormSpecialty('Мастер салона');
     setFormAccountUsername('');
     setFormAccountPassword('');
     resetPhotoState();
@@ -65,7 +64,7 @@ export default function AdminBarbersLight({ onAuthError }) {
   const openEdit = (b) => {
     setEditingBarber(b);
     setFormName(b.name);
-    setFormSortOrder(String(b.sortOrder));
+    setFormSpecialty(b.specialty || 'Мастер салона');
     setFormAccountUsername(b.accountUsername || '');
     setFormAccountPassword('');
     resetPhotoState();
@@ -86,7 +85,6 @@ export default function AdminBarbersLight({ onAuthError }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const sortOrder = Number(formSortOrder);
     const existingUsername = editingBarber?.accountUsername || '';
     const accountChanged = formAccountUsername !== existingUsername || Boolean(formAccountPassword);
     if (accountChanged && (!formAccountUsername || !formAccountPassword)) {
@@ -96,11 +94,11 @@ export default function AdminBarbersLight({ onAuthError }) {
     try {
       let barberId;
       if (editingBarber) {
-        await updateBarber(editingBarber.id, { name: formName, sortOrder });
+        await updateBarber(editingBarber.id, { name: formName, specialty: formSpecialty });
         barberId = editingBarber.id;
         showToast(`Мастер «${formName}» обновлён`);
       } else {
-        const created = await createBarber({ name: formName, photoUrl: '', sortOrder });
+        const created = await createBarber({ name: formName, photoUrl: '', specialty: formSpecialty });
         barberId = created.id;
         showToast(`Мастер «${formName}» добавлен`);
       }
@@ -112,18 +110,6 @@ export default function AdminBarbersLight({ onAuthError }) {
         showToast(`Доступ мастера «${formAccountUsername}» сохранён`);
       }
       setModalOpen(false);
-      await load();
-    } catch (err) {
-      if (err.status === 401) return onAuthError();
-      setError(err.message);
-    }
-  };
-
-  const handleDeleteAccount = async (b) => {
-    if (!window.confirm(`Удалить доступ мастера «${b.name}»? Он больше не сможет войти в кабинет.`)) return;
-    try {
-      await deleteBarberAccount(b.id);
-      showToast(`Доступ мастера «${b.name}» удалён`, 'warning');
       await load();
     } catch (err) {
       if (err.status === 401) return onAuthError();
@@ -211,7 +197,7 @@ export default function AdminBarbersLight({ onAuthError }) {
                 </div>
                 <div className="barber-mgmt-info">
                   <h3 className="barber-mgmt-name">{b.name}</h3>
-                  <span className="barber-mgmt-role">Мастер салона</span>
+                  <span className="barber-mgmt-role">{b.specialty || 'Мастер салона'}</span>
                   {b.accountUsername && <span className="barber-mgmt-role">Логин: {b.accountUsername}</span>}
                 </div>
                 <div className="barber-mgmt-footer">
@@ -220,7 +206,6 @@ export default function AdminBarbersLight({ onAuthError }) {
                     <button className="saas-icon-btn" title="Редактировать" onClick={() => openEdit(b)}>
                       <Pencil size={14} />
                     </button>
-                    {b.accountUsername && <button className="saas-icon-btn danger" title="Удалить доступ" onClick={() => handleDeleteAccount(b)}><KeyRound size={14} /></button>}
                     <button className="saas-icon-btn danger" title="Удалить" onClick={() => handleDelete(b)}>
                       <Trash2 size={14} />
                     </button>
@@ -301,8 +286,24 @@ export default function AdminBarbersLight({ onAuthError }) {
                 <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Например: Алекс" />
               </div>
               <div className="saas-form-field">
-                <label>Порядок сортировки</label>
-                <input type="number" required min="0" value={formSortOrder} onChange={(e) => setFormSortOrder(e.target.value)} />
+                <label>Роль мастера <small>(видна только администратору)</small></label>
+                <input
+                  type="text"
+                  required
+                  maxLength="80"
+                  list="master-specialties"
+                  value={formSpecialty}
+                  onChange={(e) => setFormSpecialty(e.target.value)}
+                  placeholder="Например: Парикмахер"
+                />
+                <datalist id="master-specialties">
+                  <option value="Парикмахер" />
+                  <option value="Барбер" />
+                  <option value="Мастер маникюра" />
+                  <option value="Бровист" />
+                  <option value="Визажист" />
+                  <option value="Массажист" />
+                </datalist>
               </div>
               <div className="saas-form-field">
                 <label>Логин для кабинета мастера <small>(необязательно)</small></label>

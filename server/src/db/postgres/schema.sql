@@ -11,10 +11,13 @@ CREATE TABLE IF NOT EXISTS services (
 CREATE TABLE IF NOT EXISTS barbers (
   id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
+  specialty TEXT NOT NULL DEFAULT 'Мастер салона',
   photo_url TEXT,
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   sort_order INTEGER NOT NULL DEFAULT 0
 );
+
+ALTER TABLE barbers ADD COLUMN IF NOT EXISTS specialty TEXT NOT NULL DEFAULT 'Мастер салона';
 
 CREATE TABLE IF NOT EXISTS bookings (
   id BIGSERIAL PRIMARY KEY,

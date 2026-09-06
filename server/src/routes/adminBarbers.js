@@ -11,7 +11,7 @@ const router = Router();
 router.get('/', async (req, res, next) => {
   try {
     const barbers = await database.all(`
-      SELECT b.id, b.name, b.photo_url AS photoUrl, b.sort_order AS sortOrder, b.is_active AS isActive,
+      SELECT b.id, b.name, b.specialty, b.photo_url AS photoUrl, b.sort_order AS sortOrder, b.is_active AS isActive,
         ba.username AS accountUsername, ROUND(COALESCE(AVG(r.rating), 5), 2) AS rating,
         COUNT(r.id) AS reviewCount
       FROM barbers b
@@ -67,30 +67,19 @@ router.post('/:id/account', async (req, res, next) => {
   }
 });
 
-router.delete('/:id/account', async (req, res, next) => {
-  try {
-    const barberId = Number.parseInt(req.params.id, 10);
-    if (!Number.isInteger(barberId) || barberId <= 0) return res.status(400).json({ error: 'Некорректный ID мастера' });
-    const result = await database.run('DELETE FROM barber_accounts WHERE barber_id = ?', [barberId]);
-    if (result.changes === 0) return res.status(404).json({ error: 'Аккаунт мастера не найден' });
-    return res.json({ success: true });
-  } catch (error) {
-    return next(error);
-  }
-});
-
 // POST create barber
 router.post('/', async (req, res, next) => {
   try {
     const schema = {
       name: { required: true, type: 'string' },
       photoUrl: { required: false, type: 'string' },
-      sortOrder: { required: true, type: 'integer' },
+      specialty: { required: false, type: 'string' },
     };
     validatePayload(schema, req.body);
-    const { name, photoUrl = '', sortOrder } = req.body;
-    const info = await database.one('INSERT INTO barbers (name, photo_url, sort_order, is_active) VALUES (?, ?, ?, 1) RETURNING id', [name, photoUrl, sortOrder]);
-    const newBarber = await database.one(`SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`, [info.id]);
+    const { name, photoUrl = '', specialty = 'Мастер салона' } = req.body;
+    const nextOrder = await database.one('SELECT COALESCE(MAX(sort_order), -1) + 1 AS value FROM barbers');
+    const info = await database.one('INSERT INTO barbers (name, specialty, photo_url, sort_order, is_active) VALUES (?, ?, ?, ?, 1) RETURNING id', [name, specialty.trim() || 'Мастер салона', photoUrl, Number(nextOrder.value)]);
+    const newBarber = await database.one(`SELECT id, name, specialty, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`, [info.id]);
     res.status(201).json(newBarber);
   } catch (err) {
     next(err);
@@ -104,7 +93,7 @@ router.put('/:id', async (req, res, next) => {
     const schema = {
       name: { required: false, type: 'string' },
       photoUrl: { required: false, type: 'string' },
-      sortOrder: { required: false, type: 'integer' },
+      specialty: { required: false, type: 'string' },
       isActive: { required: false, type: 'integer' },
     };
     validatePayload(schema, req.body);
@@ -118,9 +107,9 @@ router.put('/:id', async (req, res, next) => {
       fields.push('photo_url = ?');
       values.push(req.body.photoUrl);
     }
-    if (req.body.sortOrder !== undefined) {
-      fields.push('sort_order = ?');
-      values.push(req.body.sortOrder);
+    if (req.body.specialty !== undefined) {
+      fields.push('specialty = ?');
+      values.push(req.body.specialty.trim() || 'Мастер салона');
     }
     if (req.body.isActive !== undefined) {
       fields.push('is_active = ?');
@@ -130,7 +119,7 @@ router.put('/:id', async (req, res, next) => {
       return res.status(400).json({ message: 'No fields to update' });
     }
     await database.run(`UPDATE barbers SET ${fields.join(', ')} WHERE id = ?`, [...values, id]);
-    const updated = await database.one(`SELECT id, name, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`, [id]);
+    const updated = await database.one(`SELECT id, name, specialty, photo_url AS photoUrl, sort_order AS sortOrder, is_active AS isActive FROM barbers WHERE id = ?`, [id]);
     res.json(updated);
   } catch (err) {
     next(err);

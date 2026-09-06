@@ -11,6 +11,7 @@ services:
       PORT: 3001
       TZ: Asia/Almaty
       TRUST_PROXY: "true"
+      TELEGRAM_MODE: webhook
       CLIENT_ORIGIN: http://localhost:3001,http://127.0.0.1:3001
     volumes:
       - booking-data:/app/data

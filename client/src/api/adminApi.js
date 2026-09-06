@@ -58,10 +58,10 @@ export function getAdminMasterTimeBlocks() {
   return request(`${BASE}/barbers/time-blocks`);
 }
 
-export function createBarber({ name, photoUrl, sortOrder }) {
+export function createBarber({ name, photoUrl, specialty }) {
   return request(`${BASE}/barbers`, {
     method: 'POST',
-    body: JSON.stringify({ name, photoUrl, sortOrder }),
+    body: JSON.stringify({ name, photoUrl, specialty }),
   });
 }
 
@@ -81,10 +81,6 @@ export function createBarberAccount(id, { username, password }) {
     method: 'POST',
     body: JSON.stringify({ username, password }),
   });
-}
-
-export function deleteBarberAccount(id) {
-  return request(`${BASE}/barbers/${id}/account`, { method: 'DELETE' });
 }
 
 // ─── Reviews ───────────────────────────────────────────────
