@@ -6,7 +6,7 @@
 
 Коммерческое демо системы онлайн-записи для барбершопов и других сервисных бизнесов. Проект объединяет клиентскую запись, три роли доступа, расписание, Telegram-автоматизацию, отзывы, аналитику и AI-помощника, который работает только с реальными данными приложения.
 
-**[Открыть приложение](https://booking-app-mocha-three.vercel.app/)** · **[Посмотреть case study](docs/PORTFOLIO_CASE_STUDY.md)** · **[Сценарий демонстрации](docs/DEMO_SCRIPT.md)** · **[План портфолио](docs/PORTFOLIO_CHECKLIST.md)**
+**[Открыть приложение](https://booking-app-mocha-three.vercel.app/)** · **[Посмотреть case study](docs/PORTFOLIO_CASE_STUDY.md)** · **[Сценарий демонстрации](docs/DEMO_SCRIPT.md)** · **[Release checklist](docs/RELEASE_CHECKLIST.md)**
 
 ## Задача продукта
 
