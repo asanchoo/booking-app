@@ -1,100 +1,179 @@
 # BarberShop Booking Platform
 
-Полнофункциональная система онлайн-записи для барбершопа: клиент выбирает услугу, мастера и время, а администратор управляет расписанием и получает актуальную картину загрузки.
+[![Verify](https://github.com/asanchoo/booking-app/actions/workflows/verify.yml/badge.svg)](https://github.com/asanchoo/booking-app/actions/workflows/verify.yml)
+[![Live demo](https://img.shields.io/badge/demo-Vercel-000?logo=vercel)](https://booking-app-mocha-three.vercel.app/)
+[![Node.js 22](https://img.shields.io/badge/Node.js-22-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 
-## Возможности
+Коммерческое демо системы онлайн-записи для барбершопов и других сервисных бизнесов. Проект объединяет клиентскую запись, три роли доступа, расписание, Telegram-автоматизацию, отзывы, аналитику и AI-помощника, который работает только с реальными данными приложения.
 
-- онлайн-запись с защитой от пересечения слотов;
-- кабинет клиента: просмотр, отмена и перенос только собственных записей;
-- админ-панель для услуг, мастеров, расписания и клиентов;
-- регистрация и вход, защищённые HTTP-only cookies;
-- Telegram-привязка, напоминания и подтверждение визита;
-- правило отмены и переноса: минимум за заданное время до визита;
-- загрузка фотографий мастеров;
-- миграции и демо-данные SQLite;
-- ограничение частоты для входа, регистрации, восстановления пароля и записи.
-- AI-помощник: подбирает услугу, мастера и реальный свободный слот;
-- безопасный demo-режим AI без API-ключа, автоматический fallback и eval-тесты;
-- отзывы из Telegram, аналитика, CSV-экспорт и рабочий кабинет мастера.
+**[Открыть приложение](https://booking-app-mocha-three.vercel.app/)** · **[Посмотреть case study](docs/PORTFOLIO_CASE_STUDY.md)** · **[Сценарий демонстрации](docs/DEMO_SCRIPT.md)** · **[План портфолио](docs/PORTFOLIO_CHECKLIST.md)**
 
-## Стек
+## Задача продукта
 
-React, Vite, Node.js, Express, SQLite, JWT, Telegram Bot API, OpenAI Responses API, Docker, GitHub Actions.
+Небольшому бизнесу обычно приходится собирать записи из звонков и мессенджеров, вручную сверять расписание и отдельно напоминать клиентам о визите. Это приложение собирает процесс в одном месте: от выбора услуги до оценки завершённого визита.
+
+## Роли и возможности
+
+| Роль | Возможности |
+| --- | --- |
+| Клиент | Запись, регистрация, личный кабинет, перенос и отмена визита, Telegram-привязка, оценка услуги |
+| Мастер | Собственное расписание, отметка прихода, перерывы, заметки о клиентах, отзывы, загрузка фотографии |
+| Администратор | Записи и календарь, клиенты, услуги, команда, роли мастеров, отзывы, аналитика и настройки заведения |
+
+Дополнительно реализованы:
+
+- связь «услуга → подходящие мастера»;
+- защита от двойного бронирования и повторная проверка слота при подтверждении;
+- адаптивные интерфейсы для телефона и компьютера;
+- Telegram-напоминания, подтверждение визита и запрос отзыва после услуги;
+- рейтинг клиентов с учётом пропусков и поздних изменений;
+- модерация отзывов и CSV-выгрузка;
+- PostgreSQL в production и SQLite для локальной разработки;
+- хранение фотографий в Vercel Blob;
+- автоматические миграции, seed-данные, CI и регрессионные сценарии.
 
 ## AI-помощник
 
-Помощник работает с актуальными данными приложения через ограниченный набор функций: получает услуги, подходящих мастеров и доступное время. Он не имеет прямого доступа к базе и не создаёт запись без явного подтверждения пользователя. Контактные данные вводятся отдельно и не отправляются модели.
+Помощник понимает свободные запросы вроде «хочу подстричься завтра вечером», но не получает прямой доступ к базе и не может выдумать мастера или время.
 
-В режиме `auto` приложение сначала использует Gemini, затем OpenAI. Если внешний AI не настроен или временно недоступен, интерфейс честно переключается на резервный пошаговый подбор. Подробности: [архитектура](docs/AI_ARCHITECTURE.md) и [eval-проверки](docs/AI_EVALS.md).
+```mermaid
+flowchart LR
+    U[Сообщение клиента] --> A[AI orchestration]
+    A --> S[Каталог услуг]
+    A --> M[Мастера выбранной услуги]
+    A --> T[Реальные свободные слоты]
+    T --> C{Явное подтверждение}
+    C -->|Да| B[Booking service]
+    B --> V[Повторная проверка конфликта]
+    V --> DB[(PostgreSQL / SQLite)]
+```
+
+- Gemini используется как основной внешний провайдер, OpenAI поддерживается как резервный.
+- Без API-ключей включается детерминированный пошаговый режим.
+- Телефон и email удаляются до внешнего AI-запроса.
+- Контактные данные вводятся после выбора слота и не сохраняются в истории AI-чата.
+- Финальная запись всегда проходит обычные серверные бизнес-правила.
+- Evals проверяют groundedness, даты, связи услуга–мастер и защиту от выдуманных слотов.
+
+Подробнее: [архитектура AI](docs/AI_ARCHITECTURE.md) и [eval-проверки](docs/AI_EVALS.md).
+
+## Архитектура
+
+```mermaid
+flowchart TB
+    UI[React + Vite] --> API[Express API]
+    API --> AUTH[JWT role access]
+    API --> BOOK[Booking domain]
+    API --> AI[AI assistant]
+    API --> TG[Telegram webhook]
+    BOOK --> PG[(Neon PostgreSQL)]
+    API --> BLOB[Vercel Blob]
+    CRON[GitHub Actions scheduler] --> API
+```
+
+Production размещён на Vercel. Neon хранит реляционные данные, Vercel Blob — фотографии, Telegram работает через webhook, а защищённое задание напоминаний запускается по расписанию.
+
+## Стек
+
+- **Frontend:** React, Vite, responsive CSS, Lucide Icons.
+- **Backend:** Node.js 22, Express 5, JWT, bcrypt, Multer.
+- **Data:** PostgreSQL/Neon, SQLite для локальной разработки, SQL migrations.
+- **Integrations:** Gemini, OpenAI, Telegram Bot API, Vercel Blob.
+- **Delivery:** Docker, Vercel, GitHub Actions, Dependabot.
+
+## Безопасность
+
+- `HttpOnly`, `Secure` в production и `SameSite=Lax` cookies;
+- отдельная проверка ролей клиента, мастера и администратора;
+- строгий CORS без wildcard origins;
+- rate limits для входа, регистрации, записи, AI и интеграций;
+- ограничение JSON до 100 КБ и изображений до 5 МБ;
+- проверка MIME-типа и сигнатуры загружаемого изображения;
+- security headers, запрет iframe-встраивания и кеширования API;
+- секреты только в server-side environment variables;
+- минимальные permissions GitHub Actions и автоматические dependency updates.
+
+Правила ответственного сообщения об уязвимостях: [SECURITY.md](SECURITY.md).
 
 ## Локальный запуск
 
-Требуется Node.js 22+.
+Требуются Node.js 22+ и npm.
 
 ```bash
 cp server/.env.example server/.env
-# Укажите в server/.env уникальные JWT_SECRET (не менее 32 символов)
-# и ADMIN_PASSWORD_HASH.
 npm ci --prefix server
 npm ci --prefix client
 npm run db:setup
 npm run dev
-# в отдельном терминале
+```
+
+Во втором терминале:
+
+```bash
 npm run dev --prefix client
 ```
 
-Клиент откроется на `http://127.0.0.1:5176`, API — на `http://127.0.0.1:3001`.
+Frontend: `http://127.0.0.1:5176` · API: `http://127.0.0.1:3001`.
 
-## Запуск через Docker
+Перед запуском замените `JWT_SECRET` и `ADMIN_PASSWORD_HASH` в локальном `server/.env`. Настоящие `.env` запрещено добавлять в Git.
+
+## Docker
 
 ```bash
 cp server/.env.example server/.env
 docker compose up --build
 ```
 
-Приложение будет доступно на `http://localhost:3001`. Docker автоматически применяет миграции и добавляет начальные данные. Данные и загруженные изображения сохраняются в именованных Docker volumes.
-
-`docker-compose.yml` уже разрешает оба локальных адреса (`localhost:3001` и `127.0.0.1:3001`) для CORS. При деплое укажите в `CLIENT_ORIGIN` свой HTTPS-домен.
-
-Проверить готовность контейнера после запуска можно командой:
+Приложение откроется на `http://localhost:3001`. База и локальные изображения сохраняются в Docker volumes. Проверка готовности:
 
 ```bash
 docker compose ps
 ```
 
-Статус должен быть `healthy`. Docker Desktop требуется установить и запустить на компьютере до выполнения этих команд.
+## Проверка качества
+
+```bash
+npm test --prefix server
+npm run build --prefix client
+npm audit --prefix server --omit=dev
+npm audit --prefix client --omit=dev
+```
+
+CI дополнительно разворачивает одноразовую PostgreSQL, применяет все миграции и проверяет роли, каталог, запись, конфликты, перенос, отмену, перерывы, отзывы, AI и Telegram-ссылки.
 
 ## Переменные окружения
 
+Полный безопасный шаблон находится в [`server/.env.example`](server/.env.example). Ключевые production-переменные:
+
 | Переменная | Назначение |
 | --- | --- |
-| `JWT_SECRET` | Уникальный секрет длиной не менее 32 символов. Обязателен. |
-| `ADMIN_USERNAME` | Логин администратора. |
-| `ADMIN_PASSWORD_HASH` | BCrypt-хеш пароля администратора. Обязателен. |
-| `CLIENT_ORIGIN` | Разрешённый origin клиента для CORS. |
-| `TRUST_PROXY` | `true`, если приложение находится за reverse proxy. |
-| `CANCELLATION_NOTICE_MINUTES` | За сколько минут до визита разрешены отмена и перенос. По умолчанию `120`. |
-| `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота. Не коммитить. |
-| `TELEGRAM_BOT_USERNAME` | Username Telegram-бота. |
-| `TELEGRAM_MODE` | `polling` локально или `webhook` на serverless-платформе. |
-| `TELEGRAM_WEBHOOK_SECRET` | Секрет проверки входящих Telegram webhook-запросов. |
-| `PUBLIC_APP_URL` | Публичный HTTPS-адрес приложения для Telegram-ссылок. |
-| `REMINDER_MODE` | `interval` локально или `cron` на serverless-платформе. |
-| `CRON_SECRET` | Секрет запуска endpoint напоминаний. |
-| `AI_PROVIDER` | `auto`, `gemini`, `openai` или `demo`. |
-| `GEMINI_API_KEY` | Серверный API-ключ Gemini. Не коммитить и не добавлять в клиентские переменные. |
-| `GEMINI_MODEL` | Модель Gemini. По умолчанию `gemini-3.1-flash-lite`. |
-| `OPENAI_API_KEY` | Серверный API-ключ OpenAI. Не коммитить и не добавлять в Vite-переменные. |
-| `OPENAI_MODEL` | Модель AI-помощника. По умолчанию `gpt-5.4-mini`. |
-| `AI_DAILY_REQUEST_LIMIT` | Максимум внешних AI-запросов в сутки. |
-| `AI_TIMEOUT_MS` | Таймаут внешнего AI-запроса. |
+| `DATABASE_URL` | Подключение к PostgreSQL/Neon |
+| `JWT_SECRET` | Уникальный секрет не короче 32 символов |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` | Доступ администратора |
+| `CLIENT_ORIGIN` / `PUBLIC_APP_URL` | Публичный HTTPS-домен |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` | Telegram-интеграция |
+| `CRON_SECRET` | Авторизация задания напоминаний |
+| `GEMINI_API_KEY` / `OPENAI_API_KEY` | Серверные AI-провайдеры |
+| `BLOB_READ_WRITE_TOKEN` | Загрузка фотографий в Vercel Blob |
 
-## Деплой
+Ни одна серверная переменная не должна иметь префикс `VITE_`.
 
-Для демо можно развернуть Docker-контейнер с постоянным диском для `/app/data` и `/app/server/uploads`. Для Vercel потребуется Marketplace Postgres и Blob/object storage: локальная файловая система Functions не является постоянным хранилищем. Telegram переводится с polling на webhook, а напоминания — на Vercel Cron. Пошаговый план: [docs/VERCEL_DEPLOYMENT.md](docs/VERCEL_DEPLOYMENT.md).
+## Структура репозитория
 
-Перед публикацией проверьте, что `server/.env`, папка `data/`, `uploads/`, `node_modules/` и сборка клиента отсутствуют в staged-файлах.
+```text
+client/                 React-приложение
+server/src/routes/      HTTP-маршруты
+server/src/services/    Бизнес-логика и интеграции
+server/src/db/          Миграции и адаптеры баз данных
+server/test/            Автоматические тесты
+server/scripts/         Интеграционные regression checks
+api/                    Vercel Function entrypoint
+docs/                   Архитектура, деплой и case study
+.github/workflows/       CI и production reminders
+```
 
-## Статус
+## Ограничения демо и следующий этап
 
-Проект создан как коммерческое демо SaaS-системы для барбершопов и других сервисных бизнесов. Он показывает полный цикл записи, роли, Telegram-автоматизацию, AI tool calling, безопасный fallback и автоматические проверки.
+Текущий rate limiter хранится в памяти процесса и подходит для локальной версии и защиты отдельного serverless instance. Для многорегионального коммерческого запуска его следует перенести в Redis/KV. Также перед подключением реальных салонов понадобятся multi-tenancy, журнал действий, резервное копирование, мониторинг ошибок и политика обработки персональных данных.
+
+Проект демонстрирует не только интерфейс, но и полный жизненный цикл продукта: анализ задачи, моделирование ролей и данных, безопасную AI-интеграцию, production-деплой, адаптивный UX и автоматические проверки.

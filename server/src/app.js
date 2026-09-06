@@ -22,6 +22,7 @@ import adminBookingsRouter from './routes/adminBookings.js';
 import aiAssistantRouter from './routes/aiAssistant.js';
 import integrationsRouter from './routes/integrations.js';
 import { corsOptions } from './middleware/corsOptions.js';
+import { securityHeaders } from './middleware/securityHeaders.js';
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -31,6 +32,8 @@ if (process.env.TRUST_PROXY === 'true') {
   app.set('trust proxy', 1);
 }
 
+app.disable('x-powered-by');
+app.use(securityHeaders);
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());

@@ -4,9 +4,12 @@ import express from 'express';
 import cors from 'cors';
 import { corsOptions } from '../src/middleware/corsOptions.js';
 import { errorHandler } from '../src/middleware/errorHandler.js';
+import { securityHeaders } from '../src/middleware/securityHeaders.js';
 
 test('browser POST and preflight work on the application origin; foreign origins are rejected', async (t) => {
   const app = express();
+  app.disable('x-powered-by');
+  app.use(securityHeaders);
   app.use(cors(corsOptions));
   app.post('/api/auth/login', (req, res) => res.status(401).json({ error: 'Invalid credentials' }));
   app.post('/api/bookings', (req, res) => res.status(400).json({ error: 'Invalid booking' }));
@@ -20,6 +23,10 @@ test('browser POST and preflight work on the application origin; foreign origins
     assert.equal(response.status, status);
     assert.equal(response.headers.get('access-control-allow-origin'), base);
     assert.equal(response.headers.get('access-control-allow-credentials'), 'true');
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(response.headers.get('x-frame-options'), 'DENY');
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('x-powered-by'), null);
   }
   const preflight = await fetch(`${base}/api/bookings`, { method: 'OPTIONS', headers: { Origin: base, 'Access-Control-Request-Method': 'POST' } });
   assert.equal(preflight.status, 204);

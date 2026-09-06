@@ -13,3 +13,4 @@ coverage/
 .DS_Store
 data/*.db
 data/*.db-*
+server/.env
