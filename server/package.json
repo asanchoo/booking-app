@@ -26,6 +26,6 @@
     "@vercel/blob": "^2.0.0"
   },
   "optionalDependencies": {
-    "better-sqlite3": "^11.9.0"
+    "better-sqlite3": "^13.0.3"
   }
 }
