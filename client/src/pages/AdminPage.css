@@ -1238,7 +1238,7 @@
   gap: 14px;
 }
 
-.settings-field-group { display: flex; flex-direction: column; gap: 6px; }
+.settings-field-group { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
 
 .settings-field-label {
   font-size: 0.8rem;
@@ -1257,6 +1257,9 @@
   transition: border-color 0.2s;
   font-family: inherit;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .settings-input:focus { border-color: var(--adm-primary); }
@@ -1678,6 +1681,8 @@
   .section-action-bar { align-items: stretch; flex-direction: column; }
   .section-action-bar button { width: 100%; justify-content: center; }
   .reviews-summary-grid, .analytics-metrics-grid { grid-template-columns: 1fr; }
+  .settings-fields-grid { grid-template-columns: minmax(0, 1fr); }
+  .settings-card { min-width: 0; padding: 18px 16px; }
 }
 
 @media (max-height: 700px) {

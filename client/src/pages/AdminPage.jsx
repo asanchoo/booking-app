@@ -147,7 +147,7 @@ export default function AdminPage() {
         <header className="admin-top-bar">
           <div className="top-bar-left">
             <h1 className="page-title">
-              {activeTab === 'overview' && 'Обзор дашборда'}
+              {activeTab === 'overview' && 'Обзор'}
               {activeTab === 'appointments' && 'Управление записями'}
               {activeTab === 'calendar' && 'Календарь записей'}
               {activeTab === 'clients' && 'База клиентов'}

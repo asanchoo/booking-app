@@ -33,6 +33,7 @@ try {
   const { cookie: admin } = await request('/auth/login', { method: 'POST', data: { login: process.env.ADMIN_USERNAME, password: 'RegressionPassword42' } });
   assert.ok(admin.includes('admin_token='));
   for (const route of ['/auth/me', '/bookings', '/admin/services', '/admin/barbers', '/admin/barbers/time-blocks', '/admin/settings', '/admin/reviews']) await request(route, { cookie: admin });
+  await request('/admin/settings', { method: 'PUT', cookie: admin, data: { workStart: '09:00', workEnd: '21:00', slotStepMinutes: 30, workDays: '1,2,3,4,5,6,0' } });
   await request('/admin/services', { method: 'POST', cookie: admin, data: {}, status: 400 });
   await request('/admin/settings', { method: 'PUT', cookie: admin, data: { workStart: '09:00', workEnd: '18:00', slotStepMinutes: 0, workDays: '1,2' }, status: 400 });
   const { body: master } = await request('/admin/barbers', { method: 'POST', cookie: admin, status: 201, data: { name: 'Regression master', specialty: 'Парикмахер' } });

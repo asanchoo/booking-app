@@ -6,7 +6,7 @@ import {
   deleteService,
   getAdminBarbers,
 } from '../../api/adminApi.js';
-import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle, Clock, DollarSign } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 
 export default function AdminServicesLight({ onAuthError }) {
   const [services, setServices] = useState([]);
@@ -159,7 +159,7 @@ export default function AdminServicesLight({ onAuthError }) {
                     <Clock size={13} /> {svc.durationMinutes} мин
                   </span>
                   <span className="svc-meta-item price">
-                    <DollarSign size={13} /> {(svc.priceCents / 100).toLocaleString('ru-RU')} ₸
+                    {(svc.priceCents / 100).toLocaleString('ru-RU')} ₸
                   </span>
                 </div>
                 <p className="svc-card-description">Мастера: {svc.masters?.map((master) => master.name).join(', ') || 'не назначены'}</p>

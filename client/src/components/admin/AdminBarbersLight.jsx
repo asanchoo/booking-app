@@ -286,7 +286,7 @@ export default function AdminBarbersLight({ onAuthError }) {
                 <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Например: Алекс" />
               </div>
               <div className="saas-form-field">
-                <label>Роль мастера <small>(видна только администратору)</small></label>
+                <label>Роль мастера</label>
                 <input
                   type="text"
                   required
@@ -306,11 +306,11 @@ export default function AdminBarbersLight({ onAuthError }) {
                 </datalist>
               </div>
               <div className="saas-form-field">
-                <label>Логин для кабинета мастера <small>(необязательно)</small></label>
+                <label>Логин для кабинета</label>
                 <input type="text" value={formAccountUsername} onChange={(e) => setFormAccountUsername(e.target.value.toLowerCase())} placeholder="например: dias.barber" autoComplete="username" />
               </div>
               <div className="saas-form-field">
-                <label>{editingBarber?.accountUsername ? 'Новый пароль для смены доступа' : 'Пароль мастера'} <small>(минимум 8 символов)</small></label>
+                <label>{editingBarber?.accountUsername ? 'Новый пароль' : 'Пароль для входа'}</label>
                 <input type="password" value={formAccountPassword} onChange={(e) => setFormAccountPassword(e.target.value)} placeholder="Оставьте пустым, если доступ не нужен" autoComplete="new-password" />
               </div>
               {error && <div className="saas-alert error">{error}</div>}

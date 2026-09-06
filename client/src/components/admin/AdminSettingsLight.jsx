@@ -57,14 +57,14 @@ export default function AdminSettingsLight({ onAuthError }) {
     setSuccess('');
     setSaving(true);
     try {
-      const workDaysStr = Array.from(workDays).sort().join(',');
+      const workDaysStr = DAY_LABELS.filter((day) => workDays.has(day.value)).map((day) => day.value).join(',');
       if (!workDaysStr) {
         setError('Выберите хотя бы один рабочий день');
         setSaving(false);
         return;
       }
       await updateSettings({ workStart, workEnd, slotStepMinutes: Number(slotStep), workDays: workDaysStr });
-      setSuccess('Настройки сохранены!');
+      setSuccess('Настройки сохранены');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       if (err.status === 401) return onAuthError();
@@ -122,7 +122,7 @@ export default function AdminSettingsLight({ onAuthError }) {
               />
             </div>
             <div className="settings-field-group">
-              <label className="settings-field-label">Шаг слота (минуты)</label>
+              <label className="settings-field-label">Интервал записи</label>
               <select
                 className="settings-input"
                 value={slotStep}

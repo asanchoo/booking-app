@@ -30,12 +30,14 @@ router.put('/', async (req, res, next) => {
       workStart: { required: true, type: 'string', regex: /^([01]\d|2[0-3]):[0-5]\d$/ },
       workEnd: { required: true, type: 'string', regex: /^([01]\d|2[0-3]):[0-5]\d$/ },
       slotStepMinutes: { required: true, type: 'integer' },
-      workDays: { required: true, type: 'string', regex: /^[1-7](,[1-7])*$/ },
+      workDays: { required: true, type: 'string', regex: /^[0-6](,[0-6])*$/ },
     };
     validatePayload(schema, req.body);
 
     const { workStart, workEnd, slotStepMinutes, workDays } = req.body;
     if (Number(slotStepMinutes) < 5 || Number(slotStepMinutes) > 120) throw new HttpError(400, 'Шаг записи должен быть от 5 до 120 минут');
+    if (workStart >= workEnd) throw new HttpError(400, 'Время окончания работы должно быть позже времени начала');
+    if (new Set(workDays.split(',')).size !== workDays.split(',').length) throw new HttpError(400, 'Рабочие дни не должны повторяться');
 
     await transaction(async (client) => {
       const upsert = (key, value) => client.run(`

@@ -42,6 +42,10 @@
 | P1 | Master sorting was exposed as a manual technical field. | Sorting is automatic; the admin-only field now records a readable master specialization. |
 | P1 | The master logout label overflowed its undersized icon button. | The mobile logout action is now a single 104 px minimum-width control with aligned icon and label. |
 | P1 | Login and password inputs triggered iOS focus zoom. | Touch layouts enforce a 16 px minimum input, textarea, and select font size, preventing Safari focus zoom. |
+| P0 | Selecting all seven working days caused the settings request to fail. | Sunday now uses the same `0–6` weekday convention across the client and server; all days are serialized in calendar order. |
+| P1 | Working-hour controls could extend beyond the settings card on narrow screens. | Grid children and controls can shrink to the viewport, and the mobile settings card uses contained padding. |
+| P2 | Service prices showed both a dollar icon and the tenge symbol. | Prices now display only the correct `₸` currency symbol. |
+| P2 | Admin forms contained implementation-oriented hints and jargon. | Master fields and dashboard/export labels now use concise business-facing language. |
 
 ## Verification
 
@@ -50,6 +54,7 @@
 - Admin service dialog measured exactly 390 px wide and 844 px high at the overlay level, with its card contained inside the viewport.
 - Client production build passed with Vite.
 - Server suite passed: 25/25 tests.
+- The all-days schedule payload `1,2,3,4,5,6,0` is covered by the authenticated settings regression scenario.
 - Docker API is healthy after rebuilding; Telegram runs in webhook mode without a polling conflict.
 - The Docker database contains the new `specialty` column and no longer requires manual sort order from the admin form.
 - ESLint was not runnable because the repository currently declares an `eslint` script without installing ESLint; the production build remains clean.

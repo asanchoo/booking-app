@@ -81,7 +81,7 @@ export default function AppointmentsTable({
         booking.bookingSource === 'admin' ? 'Администратор' : 'Онлайн',
       ];
     });
-    const headers = ['ID', 'Дата', 'Время', 'Клиент', 'Телефон', 'Мастер', 'Услуга', 'Стоимость, ₸', 'Статус', 'Результат визита', 'Источник'];
+    const headers = ['№', 'Дата', 'Время', 'Клиент', 'Телефон', 'Мастер', 'Услуга', 'Стоимость, ₸', 'Статус', 'Результат визита', 'Источник'];
     const csv = `\uFEFF${[headers, ...rows].map((row) => row.map(cell).join(';')).join('\r\n')}`;
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
@@ -123,7 +123,7 @@ export default function AppointmentsTable({
           ))}
         </div>
         <button className="admin-new-booking-button" onClick={onCreateBooking}><Plus size={15} /> Новая запись</button>
-        <button className="admin-export-button" onClick={exportCsv} disabled={filteredBookings.length === 0}><Download size={15} /> CSV · {filteredBookings.length}</button>
+        <button className="admin-export-button" onClick={exportCsv} disabled={filteredBookings.length === 0}><Download size={15} /> Скачать список · {filteredBookings.length}</button>
       </div>
 
       {isLoading ? (
