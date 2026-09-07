@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './src/config/timezone.js';
 import app from './src/app.js';
 import { validateEnvironment } from './src/config/env.js';
 import { initBot } from './src/services/telegramService.js';

@@ -1,4 +1,5 @@
 import { HttpError } from './httpError.js';
+import { parseDateTimeInZone } from './datetime.js';
 
 function getCancellationNoticeMinutes() {
   const value = Number(process.env.CANCELLATION_NOTICE_MINUTES ?? 120);
@@ -6,7 +7,7 @@ function getCancellationNoticeMinutes() {
 }
 
 export function assertBookingCanBeChanged(startsAt) {
-  const startsAtMs = new Date(startsAt).getTime();
+  const startsAtMs = parseDateTimeInZone(startsAt)?.getTime();
   if (!Number.isFinite(startsAtMs) || startsAtMs <= Date.now()) {
     throw new HttpError(400, 'Нельзя изменить прошедшую запись');
   }

@@ -1,6 +1,7 @@
 import { database } from '../db/database.js';
 import { sendTelegramMessage } from './telegramService.js';
 import crypto from 'node:crypto';
+import { formatDateTimeInZone, parseDateTimeInZone } from '../utils/datetime.js';
 
 export async function checkAndSendReminders({ db = database, send = sendTelegramMessage, now = new Date() } = {}) {
   const stats = { reminders3h: 0, reminders1h: 0, reviewRequests: 0, failures: 0 };
@@ -40,11 +41,11 @@ export async function checkAndSendReminders({ db = database, send = sendTelegram
 
     for (const bk of candidateBookings) {
       if (Date.now() >= deadline) break;
-      const startsAtDate = new Date(bk.starts_at);
-      const startsAtMs = startsAtDate.getTime();
-      if (isNaN(startsAtMs)) continue;
+      const startsAtDate = parseDateTimeInZone(bk.starts_at);
+      const startsAtMs = startsAtDate?.getTime();
+      if (!Number.isFinite(startsAtMs)) continue;
 
-      const timeStr = startsAtDate.toLocaleTimeString('ru-RU', {
+      const timeStr = formatDateTimeInZone(startsAtDate, {
         hour: '2-digit',
         minute: '2-digit',
       });
@@ -115,7 +116,7 @@ export async function checkAndSendReminders({ db = database, send = sendTelegram
     const oldestEligibleMs = nowMs - 7 * 24 * 60 * 60 * 1000;
     for (const booking of reviewCandidates) {
       if (Date.now() >= deadline) break;
-      const endsAtMs = new Date(booking.ends_at).getTime();
+      const endsAtMs = parseDateTimeInZone(booking.ends_at)?.getTime();
       if (!Number.isFinite(endsAtMs) || endsAtMs > nowMs || endsAtMs < oldestEligibleMs) continue;
 
       const link = await db.one('SELECT chat_id FROM telegram_links WHERE phone = ?', [booking.client_phone]);

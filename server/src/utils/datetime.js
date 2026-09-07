@@ -1,6 +1,60 @@
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
 
+export function getSalonTimeZone() {
+  return process.env.BUSINESS_TIMEZONE || 'Asia/Almaty';
+}
+
+// Convert a timezone-free value stored by the booking domain into an absolute
+// instant. Date(string) cannot be used here: Vercel runs in UTC while the
+// stored value represents the salon's local clock.
+export function parseDateTimeInZone(value, timeZone = getSalonTimeZone()) {
+  const match = DATETIME_RE.exec(String(value || ''));
+  if (!match) return null;
+
+  const desired = {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: Number(match[4]),
+    minute: Number(match[5]),
+    second: Number(match[6] ?? 0),
+  };
+  const utcGuess = Date.UTC(desired.year, desired.month - 1, desired.day, desired.hour, desired.minute, desired.second);
+  if (!Number.isFinite(utcGuess)) return null;
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  });
+  let timestamp = utcGuess;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = Object.fromEntries(
+      formatter.formatToParts(new Date(timestamp))
+        .filter((part) => part.type !== 'literal')
+        .map((part) => [part.type, Number(part.value)]),
+    );
+    const represented = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    timestamp += utcGuess - represented;
+  }
+
+  const result = new Date(timestamp);
+  const finalParts = Object.fromEntries(
+    formatter.formatToParts(result)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  return Object.entries(desired).every(([key, number]) => finalParts[key] === number) ? result : null;
+}
+
+export function formatDateTimeInZone(value, options, locale = 'ru-RU', timeZone = getSalonTimeZone()) {
+  const date = value instanceof Date ? value : parseDateTimeInZone(value, timeZone);
+  if (!date || !Number.isFinite(date.getTime())) return '';
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(date);
+}
+
 export function formatDate(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');

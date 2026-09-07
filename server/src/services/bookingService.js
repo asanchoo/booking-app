@@ -1,5 +1,5 @@
 import { database, transaction } from '../db/database.js';
-import { addMinutesToDateTime, overlaps, parseDateTimeParam } from '../utils/datetime.js';
+import { addMinutesToDateTime, overlaps, parseDateTimeInZone, parseDateTimeParam } from '../utils/datetime.js';
 import { HttpError } from '../utils/httpError.js';
 import { assertBookingCanBeChanged } from '../utils/bookingPolicy.js';
 import { normalizePhone } from '../utils/phone.js';
@@ -195,7 +195,7 @@ export async function createBooking({ serviceId, barberId, startsAt, clientName,
   if (!normalizedStartsAt) {
     throw new HttpError(400, 'startsAt must be in YYYY-MM-DDTHH:mm:ss format');
   }
-  if (new Date(normalizedStartsAt).getTime() <= Date.now()) {
+  if (parseDateTimeInZone(normalizedStartsAt).getTime() <= Date.now()) {
     throw new HttpError(400, 'Нельзя создать запись в прошлом');
   }
   if (!['online', 'admin'].includes(source)) {
@@ -265,7 +265,7 @@ export async function rescheduleBooking(bookingId, newStartsAt, { enforceClientP
   if (!normalizedStartsAt) {
     throw new HttpError(400, 'newStartsAt must be in YYYY-MM-DDTHH:mm:ss format');
   }
-  if (new Date(normalizedStartsAt).getTime() <= Date.now()) {
+  if (parseDateTimeInZone(normalizedStartsAt).getTime() <= Date.now()) {
     throw new HttpError(400, 'Нельзя перенести запись в прошлое');
   }
 
@@ -286,7 +286,7 @@ export async function rescheduleBooking(bookingId, newStartsAt, { enforceClientP
 
   if (enforceClientPolicy) assertBookingCanBeChanged(booking.starts_at);
 
-  const minutesUntilVisit = (new Date(booking.starts_at).getTime() - Date.now()) / 60_000;
+  const minutesUntilVisit = (parseDateTimeInZone(booking.starts_at).getTime() - Date.now()) / 60_000;
   if (normalizedStartsAt === booking.starts_at) return mapBooking(await selectBookingById(bookingId));
   await assertAvailableTime(booking.service_id, booking.barber_id, normalizedStartsAt, bookingId);
 
