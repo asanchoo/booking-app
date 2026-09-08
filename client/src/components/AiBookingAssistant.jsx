@@ -4,6 +4,7 @@ import { confirmAiBooking, fetchAiStatus, sendAiMessage } from '../api/aiApi.js'
 import { registerClient } from '../api/clientAuthApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import './AiBookingAssistant.css';
+import LegalConsent from './LegalConsent.jsx';
 
 const welcome = {
   role: 'assistant',
@@ -31,6 +32,8 @@ export default function AiBookingAssistant() {
   const [bookingState, setBookingState] = useState({ loading: false, error: '', result: null });
   const [accountForm, setAccountForm] = useState({ password: '', confirmPassword: '' });
   const [accountState, setAccountState] = useState({ loading: false, error: '', exists: false });
+  const [bookingLegalConsent, setBookingLegalConsent] = useState(false);
+  const [accountLegalConsent, setAccountLegalConsent] = useState(false);
   const endRef = useRef(null);
 
   useEffect(() => { fetchAiStatus().then(setStatus).catch(() => setStatus({ provider: 'demo' })); }, []);
@@ -84,9 +87,13 @@ export default function AiBookingAssistant() {
 
   async function submitBooking(event) {
     event.preventDefault();
+    if (!bookingLegalConsent) {
+      setBookingState({ loading: false, error: 'Примите условия и согласие на обработку персональных данных.', result: null });
+      return;
+    }
     setBookingState({ loading: true, error: '', result: null });
     try {
-      const result = await confirmAiBooking({ ...proposal, ...form });
+      const result = await confirmAiBooking({ ...proposal, ...form, legalConsent: bookingLegalConsent });
       setBookingState({ loading: false, error: '', result });
       setMessages((current) => [...current, { role: 'assistant', content: `Готово! Запись №${result.id} создана. Ждём вас ${formatSlot(result.startsAt)}. Ниже можно подключить Telegram-напоминания.` }]);
       setProposal(null);
@@ -107,9 +114,13 @@ export default function AiBookingAssistant() {
       setAccountState({ loading: false, error: 'Пароли не совпадают.', exists: false });
       return;
     }
+    if (!accountLegalConsent) {
+      setAccountState({ loading: false, error: 'Примите условия и согласие на обработку персональных данных.', exists: false });
+      return;
+    }
     setAccountState({ loading: true, error: '', exists: false });
     try {
-      await registerClient({ phone: form.clientPhone, name: form.clientName, password });
+      await registerClient({ phone: form.clientPhone, name: form.clientName, password, legalConsent: accountLegalConsent });
       await login(form.clientPhone, password);
     } catch (error) {
       setAccountState({ loading: false, error: error.message || 'Не удалось создать личный кабинет.', exists: error.status === 409 });
@@ -166,6 +177,7 @@ export default function AiBookingAssistant() {
                 </dl>
                 <label>Ваше имя<input required maxLength="80" value={form.clientName} onChange={(event) => setForm({ ...form, clientName: event.target.value })} placeholder="Алексей" /></label>
                 <label>Телефон<input required inputMode="tel" maxLength="24" value={form.clientPhone} onChange={(event) => setForm({ ...form, clientPhone: event.target.value })} placeholder="+7 700 000 00 00" /></label>
+                <LegalConsent compact id="ai-booking-legal-consent" checked={bookingLegalConsent} onChange={(checked) => { setBookingLegalConsent(checked); setBookingState((current) => ({ ...current, error: '' })); }} disabled={bookingState.loading} />
                 {bookingState.error && <p className="ai-confirm__error">{bookingState.error}</p>}
                 <button className="ai-confirm__submit" disabled={bookingState.loading} type="submit">
                   {bookingState.loading ? <Loader2 className="spinner" size={18} /> : <Check size={18} />} Подтвердить запись
@@ -180,6 +192,7 @@ export default function AiBookingAssistant() {
                     <div className="ai-account-card__heading"><span><UserPlus size={18} /></span><div><strong>Сохраните запись в личном кабинете</strong><p>Номер и запись уже привязаны. Придумайте пароль, чтобы переносить и отменять визиты.</p></div></div>
                     <label><LockKeyhole size={13} /> Пароль<input type="password" minLength="8" maxLength="72" autoComplete="new-password" required value={accountForm.password} onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))} placeholder="От 8 символов" /></label>
                     <label><LockKeyhole size={13} /> Повторите пароль<input type="password" minLength="8" maxLength="72" autoComplete="new-password" required value={accountForm.confirmPassword} onChange={(event) => setAccountForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Повторите пароль" /></label>
+                    <LegalConsent compact id="ai-account-legal-consent" checked={accountLegalConsent} onChange={(checked) => { setAccountLegalConsent(checked); setAccountState((current) => ({ ...current, error: '' })); }} disabled={accountState.loading} />
                     {accountState.error && <p className="ai-account-card__error">{accountState.error}</p>}
                     {accountState.exists && <a className="ai-account-card__login" href="/login">У меня уже есть аккаунт — войти</a>}
                     <button type="submit" disabled={accountState.loading}>{accountState.loading ? <Loader2 size={16} className="spinner" /> : <UserPlus size={16} />} Создать кабинет</button>

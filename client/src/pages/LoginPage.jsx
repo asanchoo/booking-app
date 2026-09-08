@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { registerClient, sendForgotPasswordCode, resetForgotPassword } from '../api/clientAuthApi.js';
 import { Scissors, User, KeyRound, AlertCircle, Loader2, ArrowLeft, CheckCircle2, Phone } from 'lucide-react';
 import './LoginPage.css';
+import LegalConsent from '../components/LegalConsent.jsx';
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams();
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [regName, setRegName] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [regLegalConsent, setRegLegalConsent] = useState(false);
 
   // Forgot password state
   const [forgotPhone, setForgotPhone] = useState('+7 ');
@@ -104,6 +106,10 @@ export default function LoginPage() {
       setError('Пароли не совпадают');
       return;
     }
+    if (!regLegalConsent) {
+      setError('Примите условия и согласие на обработку персональных данных');
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -111,6 +117,7 @@ export default function LoginPage() {
         phone: regPhone,
         name: regName.trim(),
         password: regPassword,
+        legalConsent: regLegalConsent,
       });
 
       // Auto-login after registration
@@ -394,6 +401,13 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
             </div>
+
+            <LegalConsent
+              id="registration-legal-consent"
+              checked={regLegalConsent}
+              onChange={(checked) => { setRegLegalConsent(checked); if (error) setError(''); }}
+              disabled={isLoading}
+            />
 
             <button type="submit" className="login-button" disabled={isLoading}>
               {isLoading ? (

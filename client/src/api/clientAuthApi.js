@@ -25,12 +25,12 @@ async function request(url, options = {}) {
 
 /**
  * Register new client
- * @param {Object} data { phone, password, name }
+ * @param {Object} data { phone, password, name, legalConsent }
  */
-export function registerClient({ phone, password, name }) {
+export function registerClient({ phone, password, name, legalConsent }) {
   return request(`${BASE_AUTH}/register`, {
     method: 'POST',
-    body: JSON.stringify({ phone, password, name }),
+    body: JSON.stringify({ phone, password, name, legalConsent }),
   });
 }
 

@@ -9,6 +9,8 @@ import BarberDashboardPage from './pages/BarberDashboardPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { RefreshCw } from 'lucide-react';
 import AiBookingAssistant from './components/AiBookingAssistant.jsx';
+import LegalFooter from './components/LegalFooter.jsx';
+import LegalPage from './pages/LegalPage.jsx';
 import './index.css';
 
 // Protected Route specifically for Admin
@@ -123,10 +125,14 @@ export default function App() {
               element={<BarberProtectedRoute><BarberDashboardPage /></BarberProtectedRoute>}
             />
 
+            <Route path="/privacy" element={<LegalPage type="privacy" />} />
+            <Route path="/terms" element={<LegalPage type="terms" />} />
+
             {/* Catch-all fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <LegalFooter />
         <PublicAiAssistant />
       </Router>
     </AuthProvider>

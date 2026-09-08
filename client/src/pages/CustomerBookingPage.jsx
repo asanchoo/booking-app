@@ -4,6 +4,7 @@ import ServiceCard from '../components/ServiceCard.jsx';
 import BarberCard from '../components/BarberCard.jsx';
 import SlotPicker from '../components/SlotPicker.jsx';
 import BookingForm from '../components/BookingForm.jsx';
+import LegalConsent from '../components/LegalConsent.jsx';
 import { generateTelegramLink, checkTelegramStatus, checkClientAuth, registerClient } from '../api/clientAuthApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
@@ -424,6 +425,7 @@ function SuccessScreen({ bk, phone, clientAuth, onClientAuthenticated, selectedS
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountError, setAccountError] = useState('');
   const [accountExists, setAccountExists] = useState(false);
+  const [accountLegalConsent, setAccountLegalConsent] = useState(false);
   const { login } = useAuth();
 
   useEffect(() => {
@@ -475,9 +477,10 @@ function SuccessScreen({ bk, phone, clientAuth, onClientAuthenticated, selectedS
     setAccountExists(false);
     if (password.length < 8) return setAccountError('Пароль должен содержать минимум 8 символов.');
     if (password !== confirmPassword) return setAccountError('Пароли не совпадают.');
+    if (!accountLegalConsent) return setAccountError('Примите условия и согласие на обработку персональных данных.');
     setAccountLoading(true);
     try {
-      await registerClient({ phone, name: bk.clientName || bk.customer_name || '', password });
+      await registerClient({ phone, name: bk.clientName || bk.customer_name || '', password, legalConsent: accountLegalConsent });
       const session = await login(phone, password);
       onClientAuthenticated({ authenticated: true, phone: session.phone, name: session.name || bk.clientName || '' });
       setPassword('');
@@ -525,6 +528,7 @@ function SuccessScreen({ bk, phone, clientAuth, onClientAuthenticated, selectedS
                 <input type="password" minLength="8" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Придумайте пароль" aria-label="Пароль" />
                 <input type="password" minLength="8" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Повторите пароль" aria-label="Подтверждение пароля" />
               </div>
+              <LegalConsent id="success-account-legal-consent" checked={accountLegalConsent} onChange={(checked) => { setAccountLegalConsent(checked); setAccountError(''); }} disabled={accountLoading} />
               {accountError && <p className="cp-account-error">{accountError}</p>}
               {accountExists && <a className="cp-account-login" href="/login">Войти в существующий аккаунт</a>}
               <button type="submit" className="cp-account-button" disabled={accountLoading}>

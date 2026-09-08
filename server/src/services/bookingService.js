@@ -6,6 +6,7 @@ import { normalizePhone } from '../utils/phone.js';
 import { applyClientRatingEvent, ensureClientRating } from './clientRatingService.js';
 import { getAvailableSlots } from './slotService.js';
 import { addDays, formatDate, parseDateParam } from '../utils/datetime.js';
+import { LEGAL_DOCUMENT_VERSION, legalConsentTimestamp } from './legalConsent.js';
 
 async function assertAvailableTime(serviceId, barberId, startsAt, excludedBookingId = null) {
   const date = startsAt.slice(0, 10);
@@ -182,7 +183,7 @@ export async function listClientBookings(clientPhone) {
   }));
 }
 
-export async function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online', aiAssisted = false } = {}) {
+export async function createBooking({ serviceId, barberId, startsAt, clientName, clientPhone, source = 'online', aiAssisted = false, legalConsent = false } = {}) {
   if (!Number.isInteger(serviceId) || serviceId <= 0) {
     throw new HttpError(400, 'serviceId must be a positive integer');
   }
@@ -200,6 +201,9 @@ export async function createBooking({ serviceId, barberId, startsAt, clientName,
   }
   if (!['online', 'admin'].includes(source)) {
     throw new HttpError(400, 'Некорректный источник записи');
+  }
+  if (source === 'online' && legalConsent !== true) {
+    throw new HttpError(400, 'Для записи необходимо согласие на обработку персональных данных');
   }
 
   const trimmedName = typeof clientName === 'string' ? clientName.trim() : '';
@@ -242,11 +246,13 @@ export async function createBooking({ serviceId, barberId, startsAt, clientName,
       throw new HttpError(409, 'Selected time slot is no longer available');
     }
 
+    const consentAt = source === 'online' ? legalConsentTimestamp() : null;
+    const legalVersion = source === 'online' ? LEGAL_DOCUMENT_VERSION : null;
     const inserted = await client.one(`
-      INSERT INTO bookings (service_id, barber_id, client_name, client_phone, starts_at, ends_at, status, booking_source, ai_assisted)
-      VALUES (?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)
+      INSERT INTO bookings (service_id, barber_id, client_name, client_phone, starts_at, ends_at, status, booking_source, ai_assisted, legal_consent_at, legal_version)
+      VALUES (?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?)
       RETURNING id
-    `, [serviceId, barber.id, trimmedName, normalizedPhone, normalizedStartsAt, endsAt, source, aiAssisted ? 1 : 0]);
+    `, [serviceId, barber.id, trimmedName, normalizedPhone, normalizedStartsAt, endsAt, source, aiAssisted ? 1 : 0, consentAt, legalVersion]);
     return selectBookingById(inserted.id, client);
   });
 

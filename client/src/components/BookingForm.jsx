@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Phone, Calendar, Clock, AlertTriangle, ArrowRight, Loader2, Lock } from 'lucide-react';
 import './BookingForm.css';
+import LegalConsent from './LegalConsent.jsx';
 
 export default function BookingForm({ service, barber, slot, onSubmit, isLoading, errorMessage, clientAuth }) {
   const isClientLoggedIn = Boolean(clientAuth?.authenticated && clientAuth?.phone);
@@ -8,6 +9,7 @@ export default function BookingForm({ service, barber, slot, onSubmit, isLoading
   const [customerName, setCustomerName] = useState(clientAuth?.name || '');
   const [customerPhone, setCustomerPhone] = useState(clientAuth?.phone || '');
   const [formError, setFormError] = useState('');
+  const [legalConsent, setLegalConsent] = useState(false);
 
   useEffect(() => {
     if (clientAuth?.name && !customerName) {
@@ -57,12 +59,17 @@ export default function BookingForm({ service, barber, slot, onSubmit, isLoading
       setFormError('Пожалуйста, введите корректный номер телефона');
       return;
     }
+    if (!legalConsent) {
+      setFormError('Примите условия и согласие на обработку персональных данных');
+      return;
+    }
 
     onSubmit({
       serviceId: service.id,
       startsAt: slotTime,
       clientName: customerName.trim(),
       clientPhone: finalPhone,
+      legalConsent,
     });
   };
 
@@ -184,6 +191,13 @@ export default function BookingForm({ service, barber, slot, onSubmit, isLoading
             }
           />
         </div>
+
+        <LegalConsent
+          id="booking-legal-consent"
+          checked={legalConsent}
+          onChange={(checked) => { setLegalConsent(checked); if (formError) setFormError(''); }}
+          disabled={isLoading}
+        />
 
         <button 
           type="submit" 

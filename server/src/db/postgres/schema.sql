@@ -35,8 +35,13 @@ CREATE TABLE IF NOT EXISTS bookings (
   review_request_sent_at TEXT,
   booking_source TEXT NOT NULL DEFAULT 'online' CHECK (booking_source IN ('online', 'admin')),
   ai_assisted INTEGER NOT NULL DEFAULT 0 CHECK (ai_assisted IN (0, 1)),
+  legal_consent_at TEXT,
+  legal_version TEXT,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::text)
 );
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS legal_consent_at TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS legal_version TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_bookings_starts_at ON bookings(starts_at);
 CREATE INDEX IF NOT EXISTS idx_bookings_service_starts_at ON bookings(service_id, starts_at);
@@ -56,8 +61,13 @@ CREATE TABLE IF NOT EXISTS clients (
   phone TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL DEFAULT '',
+  legal_consent_at TEXT,
+  legal_version TEXT,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::text)
 );
+
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS legal_consent_at TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS legal_version TEXT;
 
 CREATE TABLE IF NOT EXISTS otp_codes (
   id BIGSERIAL PRIMARY KEY,

@@ -10,6 +10,7 @@ import { normalizePhone } from '../utils/phone.js';
 import { createTelegramLink } from '../services/telegramLinkService.js';
 import { consumeTelegramLoginToken } from '../services/telegramLoginService.js';
 import { createOtpCode, hashOtp, otpMatches } from '../services/otpSecurity.js';
+import { hasExplicitLegalConsent, LEGAL_DOCUMENT_VERSION, legalConsentTimestamp } from '../services/legalConsent.js';
 
 const router = Router();
 const MIN_PASSWORD_LENGTH = 8;
@@ -26,7 +27,11 @@ const CLIENT_COOKIE_OPTIONS = {
 // ─── POST /api/client-auth/register ──────────────────────────────────────────
 router.post('/register', rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message: 'Слишком много регистраций. Попробуйте через несколько минут.' }), async (req, res, next) => {
   try {
-    const { phone, password, name } = req.body || {};
+    const { phone, password, name, legalConsent } = req.body || {};
+
+    if (!hasExplicitLegalConsent(legalConsent)) {
+      return res.status(400).json({ error: 'Для регистрации необходимо принять условия и согласиться на обработку персональных данных' });
+    }
 
     const cleanPhone = normalizePhone(phone);
     if (!cleanPhone || cleanPhone.length < 10) {
@@ -51,9 +56,9 @@ router.post('/register', rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message:
     const password_hash = await bcrypt.hash(password, 10);
 
     await database.run(`
-      INSERT INTO clients (phone, password_hash, name)
-      VALUES (?, ?, ?)
-    `, [cleanPhone, password_hash, trimmedName]);
+      INSERT INTO clients (phone, password_hash, name, legal_consent_at, legal_version)
+      VALUES (?, ?, ?, ?, ?)
+    `, [cleanPhone, password_hash, trimmedName, legalConsentTimestamp(), LEGAL_DOCUMENT_VERSION]);
 
     return res.status(201).json({ success: true, phone: cleanPhone });
   } catch (error) {

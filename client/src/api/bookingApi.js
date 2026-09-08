@@ -42,6 +42,7 @@ export async function createBooking(bookingData) {
     startsAt: bookingData.startsAt || bookingData.start_time,
     clientName: bookingData.clientName || bookingData.customer_name,
     clientPhone: bookingData.clientPhone || bookingData.customer_phone,
+    legalConsent: bookingData.legalConsent,
   };
 
   const res = await fetch('/api/bookings', {

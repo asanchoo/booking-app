@@ -59,6 +59,7 @@ router.post('/book', bookingLimit, async (req, res, next) => {
       clientPhone: req.body.clientPhone,
       source: 'online',
       aiAssisted: true,
+      legalConsent: req.body.legalConsent,
     });
     const telegram = await createTelegramLink(booking.clientPhone);
     return res.status(201).json({ ...booking, telegram });

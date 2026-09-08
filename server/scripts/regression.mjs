@@ -43,9 +43,10 @@ try {
   const { body: masters } = await request(`/barbers?serviceId=${service.id}`);
   assert.deepEqual(masters.map(v => v.id), [master.id]);
   const phone = '70000009991';
-  await request('/client-auth/register', { method: 'POST', data: { phone, name: 'Regression client', password: 'RegressionPassword42' }, status: 201 });
-  await request('/client-auth/register', { method: 'POST', data: { phone, name: 'Regression client', password: 'RegressionPassword42' }, status: 409 });
-  await request('/client-auth/register', { method: 'POST', data: { phone: '70000009992', name: 'Regression client', password: {} }, status: 400 });
+  await request('/client-auth/register', { method: 'POST', data: { phone, name: 'Regression client', password: 'RegressionPassword42' }, status: 400 });
+  await request('/client-auth/register', { method: 'POST', data: { phone, name: 'Regression client', password: 'RegressionPassword42', legalConsent: true }, status: 201 });
+  await request('/client-auth/register', { method: 'POST', data: { phone, name: 'Regression client', password: 'RegressionPassword42', legalConsent: true }, status: 409 });
+  await request('/client-auth/register', { method: 'POST', data: { phone: '70000009992', name: 'Regression client', password: {}, legalConsent: true }, status: 400 });
   const { cookie: client } = await request('/auth/login', { method: 'POST', data: { login: phone, password: 'RegressionPassword42' } });
   const { cookie: barber } = await request('/auth/login', { method: 'POST', data: { login: 'regression-master', password: 'RegressionPassword42' } });
   for (const route of ['/barber/me', '/barber/bookings', '/barber/reviews', '/barber/time-blocks']) await request(route, { cookie: barber });
@@ -55,7 +56,8 @@ try {
   const { body: times } = await request(`/slots?serviceId=${service.id}&barberId=${master.id}`);
   const slots = times.slots.filter(s => new Date(s.startsAt).getTime() > Date.now() + 2 * 86400000);
   assert.ok(slots.length > 3);
-  const payload = { serviceId: service.id, barberId: master.id, startsAt: slots[0].startsAt, clientName: 'Regression client', clientPhone: phone };
+  const payload = { serviceId: service.id, barberId: master.id, startsAt: slots[0].startsAt, clientName: 'Regression client', clientPhone: phone, legalConsent: true };
+  await request('/bookings', { method: 'POST', data: { ...payload, legalConsent: false }, status: 400 });
   await request('/bookings', { method: 'POST', data: { ...payload, clientName: {} }, status: 400 });
   await request('/bookings', { method: 'POST', data: { ...payload, startsAt: slots[0].startsAt.slice(0, 11) + '23:30:00' }, status: 409 });
   await request(`/slots?serviceId=${service.id}&barberId=${master.id}&from=2026-01-01&to=2099-01-01`, { status: 400 });
