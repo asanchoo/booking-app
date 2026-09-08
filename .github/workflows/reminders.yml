@@ -2,7 +2,9 @@ name: Send booking reminders
 
 on:
   schedule:
-    - cron: '3-58/5 * * * *'
+    # Avoid the busiest first minutes of each hour, when GitHub is most likely
+    # to delay scheduled workflows.
+    - cron: '7-57/5 * * * *'
   workflow_dispatch:
 
 permissions: {}
@@ -25,5 +27,6 @@ jobs:
             exit 1
           fi
           curl --fail-with-body --silent --show-error --max-time 60 \
+            --retry 2 --retry-all-errors --retry-delay 10 \
             -H "Authorization: Bearer $CRON_SECRET" \
             https://booking-app-mocha-three.vercel.app/api/integrations/jobs/reminders

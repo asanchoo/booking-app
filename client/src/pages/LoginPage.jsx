@@ -96,8 +96,8 @@ export default function LoginPage() {
       setError('Введите ваше имя');
       return;
     }
-    if (regPassword.length < 6) {
-      setError('Пароль должен содержать минимум 6 символов');
+    if (regPassword.length < 8) {
+      setError('Пароль должен содержать минимум 8 символов');
       return;
     }
     if (regPassword !== regConfirmPassword) {
@@ -141,7 +141,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await sendForgotPasswordCode(forgotPhone);
-      setSuccessMsg(`Код подтверждения отправлен в ваш Telegram!`);
+      setSuccessMsg('Если номер зарегистрирован и Telegram привязан, код уже отправлен.');
       setMode('forgot_step2');
     } catch (err) {
       setError(err.message || 'Telegram не привязан, обратитесь в поддержку');
@@ -155,12 +155,12 @@ export default function LoginPage() {
     e.preventDefault();
     clearMessages();
 
-    if (forgotCode.trim().length !== 4) {
-      setError('Введите 4-значный код из Telegram');
+    if (forgotCode.trim().length !== 6) {
+      setError('Введите 6-значный код из Telegram');
       return;
     }
-    if (forgotNewPassword.length < 6) {
-      setError('Новый пароль должен быть не менее 6 символов');
+    if (forgotNewPassword.length < 8) {
+      setError('Новый пароль должен быть не менее 8 символов');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
@@ -369,7 +369,7 @@ export default function LoginPage() {
 
             <div className="input-group">
               <label htmlFor="reg-pass">
-                <KeyRound size={14} /> Пароль (от 6 символов)
+                <KeyRound size={14} /> Пароль (от 8 символов)
               </label>
               <input
                 id="reg-pass"
@@ -474,16 +474,16 @@ export default function LoginPage() {
           <form onSubmit={handleForgotStep2Submit} className="login-form">
             <div className="input-group">
               <label htmlFor="forgot-code">
-                <KeyRound size={14} /> Код из Telegram (4 цифры)
+                <KeyRound size={14} /> Код из Telegram (6 цифр)
               </label>
               <input
                 id="forgot-code"
                 type="text"
                 inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
+                maxLength={6}
+                placeholder="••••••"
                 value={forgotCode}
-                onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 disabled={isLoading}
                 autoFocus
                 style={{ textAlign: 'center', letterSpacing: '8px', fontSize: '1.25rem', fontWeight: 'bold' }}
@@ -518,7 +518,7 @@ export default function LoginPage() {
               />
             </div>
 
-            <button type="submit" className="login-button" disabled={isLoading || forgotCode.length !== 4}>
+            <button type="submit" className="login-button" disabled={isLoading || forgotCode.length !== 6}>
               {isLoading ? (
                 <>
                   <Loader2 size={17} className="spinner" />

@@ -473,7 +473,7 @@ function SuccessScreen({ bk, phone, clientAuth, onClientAuthenticated, selectedS
     event.preventDefault();
     setAccountError('');
     setAccountExists(false);
-    if (password.length < 6) return setAccountError('Пароль должен содержать минимум 6 символов.');
+    if (password.length < 8) return setAccountError('Пароль должен содержать минимум 8 символов.');
     if (password !== confirmPassword) return setAccountError('Пароли не совпадают.');
     setAccountLoading(true);
     try {
@@ -522,8 +522,8 @@ function SuccessScreen({ bk, phone, clientAuth, onClientAuthenticated, selectedS
                 <p>Создайте пароль — сможете переносить записи, оставлять отзывы и получать напоминания.</p>
               </div>
               <div className="cp-account-fields">
-                <input type="password" minLength="6" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Придумайте пароль" aria-label="Пароль" />
-                <input type="password" minLength="6" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Повторите пароль" aria-label="Подтверждение пароля" />
+                <input type="password" minLength="8" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Придумайте пароль" aria-label="Пароль" />
+                <input type="password" minLength="8" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Повторите пароль" aria-label="Подтверждение пароля" />
               </div>
               {accountError && <p className="cp-account-error">{accountError}</p>}
               {accountExists && <a className="cp-account-login" href="/login">Войти в существующий аккаунт</a>}

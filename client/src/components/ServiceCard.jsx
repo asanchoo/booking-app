@@ -4,32 +4,35 @@ import './ServiceCard.css';
 
 export default function ServiceCard({ service, isSelected, onSelect }) {
   return (
-    <div 
+    <button
+      type="button"
       className={`service-card ${isSelected ? 'selected' : ''}`}
       onClick={() => onSelect(service)}
+      aria-pressed={isSelected}
+      aria-label={`${service.name}, ${service.durationMinutes || service.duration_minutes} минут`}
     >
-      <div className="service-card-header">
-        <h3 className="service-name">{service.name}</h3>
+      <span className="service-card-header">
+        <span className="service-name">{service.name}</span>
         {isSelected && <CheckCircle2 className="check-icon" size={20} />}
-      </div>
+      </span>
       
-      <p className="service-description">
+      <span className="service-description">
         {service.description || 'Профессиональная услуга от опытного мастера.'}
-      </p>
+      </span>
 
-      <div className="service-card-footer">
-        <div className="service-duration">
+      <span className="service-card-footer">
+        <span className="service-duration">
           <Clock size={16} />
           <span>{service.durationMinutes || service.duration_minutes} мин</span>
-        </div>
-        <div className="service-price">
+        </span>
+        <span className="service-price">
           {(() => {
             const rawPrice = service.priceCents !== undefined ? service.priceCents / 100 : service.price;
             const priceNum = Number(rawPrice);
             return isNaN(priceNum) ? '—' : `${priceNum.toLocaleString('ru-RU')} ₸`;
           })()}
-        </div>
-      </div>
-    </div>
+        </span>
+      </span>
+    </button>
   );
 }

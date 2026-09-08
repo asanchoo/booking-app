@@ -68,7 +68,7 @@ flowchart TB
     API --> TG[Telegram webhook]
     BOOK --> PG[(Neon PostgreSQL)]
     API --> BLOB[Vercel Blob]
-    CRON[GitHub Actions scheduler] --> API
+    CRON[Reliable external scheduler] --> API
 ```
 
 Production размещён на Vercel. Neon хранит реляционные данные, Vercel Blob — фотографии, Telegram работает через webhook, а защищённое задание напоминаний запускается по расписанию.

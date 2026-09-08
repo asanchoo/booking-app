@@ -11,9 +11,12 @@ retaining SQLite and local uploads for local development.
 - Master photos: Vercel Blob or another S3-compatible object store.
 - Telegram: HTTPS webhook (`TELEGRAM_MODE=webhook`), not polling.
 - Reminders and review requests: external scheduler (`REMINDER_MODE=cron`).
-  This repository includes `.github/workflows/reminders.yml` with a five-minute
-  requested cadence and a manual trigger. Store the same random `CRON_SECRET`
-  in Vercel and GitHub Actions as `REMINDERS_CRON_SECRET`.
+  This repository includes `.github/workflows/reminders.yml` as a temporary
+  fallback with a requested five-minute cadence and a manual trigger. GitHub
+  scheduled workflows may be delayed or skipped, so a commercial deployment
+  must use a scheduler with per-minute delivery guarantees (for example Vercel
+  Pro Cron or a managed queue). Store the same random `CRON_SECRET` in the
+  scheduler and Vercel; GitHub Actions uses the name `REMINDERS_CRON_SECRET`.
   GitHub schedules can be delayed and public repositories pause them after
   60 days without activity. This is a demo setup, not a delivery-time SLA.
   Vercel Hobby cron runs at most once daily and cannot replace this schedule.

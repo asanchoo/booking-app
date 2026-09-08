@@ -37,7 +37,9 @@ export function initBot() {
   if (botInstance) return botInstance;
 
   botInstance = new Bot(token);
-  botInstance.catch(error => { throw error; });
+  botInstance.catch((error) => {
+    console.error('[TelegramBot] Update handler failed:', error?.message || error);
+  });
   console.log('[TelegramBot] Bot initialized.');
 
   // Helper to format date & time for display
@@ -614,8 +616,15 @@ export function initBot() {
 
   const mode = String(process.env.TELEGRAM_MODE || 'polling').toLowerCase();
   if (mode === 'polling') {
-    botInstance.startPolling();
-    console.log('[TelegramBot] Polling started successfully.');
+    botInstance.startPolling().catch((error) => {
+      const message = error?.description || error?.message || String(error);
+      if (message.includes('webhook is active')) {
+        console.warn('[TelegramBot] Polling disabled because the production webhook is active. Use TELEGRAM_MODE=webhook locally or remove the webhook before polling.');
+      } else {
+        console.error('[TelegramBot] Polling failed:', message);
+      }
+    });
+    console.log('[TelegramBot] Polling requested.');
   } else {
     console.log('[TelegramBot] Webhook mode initialized.');
   }

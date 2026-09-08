@@ -99,8 +99,8 @@ export default function AiBookingAssistant() {
     event.preventDefault();
     const { password, confirmPassword } = accountForm;
     setAccountState({ loading: false, error: '', exists: false });
-    if (password.length < 6 || password.length > 72) {
-      setAccountState({ loading: false, error: 'Пароль должен содержать от 6 до 72 символов.', exists: false });
+    if (password.length < 8 || password.length > 72) {
+      setAccountState({ loading: false, error: 'Пароль должен содержать от 8 до 72 символов.', exists: false });
       return;
     }
     if (password !== confirmPassword) {
@@ -117,9 +117,9 @@ export default function AiBookingAssistant() {
   }
 
   return (
-    <div className="ai-assistant">
+    <div className={`ai-assistant ${open ? 'ai-assistant--open' : ''}`}>
       {open && (
-        <section className="ai-panel" role="dialog" aria-label="AI-помощник по записи">
+        <section className="ai-panel" role="dialog" aria-modal="true" aria-label="AI-помощник по записи">
           <header className="ai-panel__header">
             <span className="ai-panel__icon"><Sparkles size={20} /></span>
             <div><strong>{status?.provider === 'fallback' ? 'Быстрый подбор' : 'AI-консьерж'}</strong><small><i /> {status?.provider === 'gemini' ? 'Gemini AI' : (status?.provider === 'openai' ? 'OpenAI' : 'Резервный режим')} · онлайн</small></div>
@@ -178,8 +178,8 @@ export default function AiBookingAssistant() {
                 {!authenticated && (
                   <form className="ai-account-card" onSubmit={createAccount}>
                     <div className="ai-account-card__heading"><span><UserPlus size={18} /></span><div><strong>Сохраните запись в личном кабинете</strong><p>Номер и запись уже привязаны. Придумайте пароль, чтобы переносить и отменять визиты.</p></div></div>
-                    <label><LockKeyhole size={13} /> Пароль<input type="password" minLength="6" maxLength="72" autoComplete="new-password" required value={accountForm.password} onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))} placeholder="От 6 символов" /></label>
-                    <label><LockKeyhole size={13} /> Повторите пароль<input type="password" minLength="6" maxLength="72" autoComplete="new-password" required value={accountForm.confirmPassword} onChange={(event) => setAccountForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Повторите пароль" /></label>
+                    <label><LockKeyhole size={13} /> Пароль<input type="password" minLength="8" maxLength="72" autoComplete="new-password" required value={accountForm.password} onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))} placeholder="От 8 символов" /></label>
+                    <label><LockKeyhole size={13} /> Повторите пароль<input type="password" minLength="8" maxLength="72" autoComplete="new-password" required value={accountForm.confirmPassword} onChange={(event) => setAccountForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Повторите пароль" /></label>
                     {accountState.error && <p className="ai-account-card__error">{accountState.error}</p>}
                     {accountState.exists && <a className="ai-account-card__login" href="/login">У меня уже есть аккаунт — войти</a>}
                     <button type="submit" disabled={accountState.loading}>{accountState.loading ? <Loader2 size={16} className="spinner" /> : <UserPlus size={16} />} Создать кабинет</button>
