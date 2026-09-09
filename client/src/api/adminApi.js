@@ -132,6 +132,10 @@ export async function uploadBarberPhoto(barberId, file) {
   return res.json();
 }
 
+export function deleteBarberPhoto(barberId) {
+  return request(`${BASE}/barbers/${barberId}/photo`, { method: 'DELETE' });
+}
+
 // ─── Settings ───────────────────────────────────────────────
 export function getSettings() {
   return request(`${BASE}/settings`);

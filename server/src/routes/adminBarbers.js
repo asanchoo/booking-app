@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { database } from '../db/database.js';
 import { validatePayload } from '../utils/validation.js';
 import { HttpError } from '../utils/httpError.js';
-import { barberPhotoUpload, replaceBarberPhoto } from '../services/barberPhotoService.js';
+import { barberPhotoUpload, removeBarberPhoto, replaceBarberPhoto } from '../services/barberPhotoService.js';
 
 const router = Router();
 
@@ -156,6 +156,14 @@ router.post('/:id/photo', (req, res, next) => {
       return next(err);
     }
   });
+});
+
+router.delete('/:id/photo', async (req, res, next) => {
+  try {
+    return res.json(await removeBarberPhoto(req.params.id));
+  } catch (error) {
+    return next(error);
+  }
 });
 
 export default router;

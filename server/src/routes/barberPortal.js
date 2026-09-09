@@ -6,7 +6,7 @@ import { HttpError } from '../utils/httpError.js';
 import { formatDateTime, parseDateTimeParam } from '../utils/datetime.js';
 import { normalizePhone } from '../utils/phone.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { barberPhotoUpload, replaceBarberPhoto } from '../services/barberPhotoService.js';
+import { barberPhotoUpload, removeBarberPhoto, replaceBarberPhoto } from '../services/barberPhotoService.js';
 
 const router = Router();
 router.use(requireBarberAuth);
@@ -37,6 +37,14 @@ router.post('/me/photo', rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message:
       return next(error);
     }
   });
+});
+
+router.delete('/me/photo', rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message: 'Слишком много попыток изменения. Попробуйте позже.' }), async (req, res, next) => {
+  try {
+    return res.json(await removeBarberPhoto(req.barberId));
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.get('/bookings', async (req, res, next) => {

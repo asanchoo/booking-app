@@ -1517,6 +1517,7 @@
 }
 
 .photo-preview-circle:hover .photo-overlay { opacity: 1; }
+.photo-remove-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin-top:3px;padding:6px 9px;border-radius:8px;color:#b42318;background:#fff1f0;font-size:.75rem;font-weight:750}.photo-remove-button:hover:not(:disabled){background:#ffe2df}.photo-remove-button:disabled{opacity:.6;cursor:wait}
 .photo-hint { font-size: 0.75rem; color: var(--adm-dim); }
 
 /* ═══════════════════════════════════════

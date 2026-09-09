@@ -26,3 +26,4 @@ export const uploadOwnMasterPhoto = (file) => {
   body.append('photo', file);
   return request(`${BASE}/me/photo`, { method: 'POST', body });
 };
+export const deleteOwnMasterPhoto = () => request(`${BASE}/me/photo`, { method: 'DELETE' });

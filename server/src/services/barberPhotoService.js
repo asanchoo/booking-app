@@ -51,6 +51,25 @@ function removeFile(filePath) {
   if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
 }
 
+function isManagedBlobUrl(photoUrl) {
+  try {
+    return new URL(photoUrl).hostname.endsWith('.blob.vercel-storage.com');
+  } catch {
+    return false;
+  }
+}
+
+async function deleteStoredPhoto(photoUrl) {
+  if (photoUrl?.startsWith('/uploads/barbers/')) {
+    removeFile(path.join(UPLOADS_DIR, path.basename(photoUrl)));
+    return;
+  }
+  if (useBlob && isManagedBlobUrl(photoUrl)) {
+    const { del } = await import('@vercel/blob');
+    await del(photoUrl);
+  }
+}
+
 export async function replaceBarberPhoto({ barberId, file }) {
   const id = Number.parseInt(barberId, 10);
   if (!Number.isInteger(id) || id <= 0) {
@@ -86,18 +105,32 @@ export async function replaceBarberPhoto({ barberId, file }) {
   }
   await database.run('UPDATE barbers SET photo_url = ? WHERE id = ?', [photoUrl, id]);
 
-  if (barber.photo_url?.startsWith('/uploads/barbers/')) {
-    const oldPath = path.join(UPLOADS_DIR, path.basename(barber.photo_url));
-    if (oldPath !== file.path) removeFile(oldPath);
-  }
-  if (useBlob && /^https:\/\//.test(barber.photo_url || '')) {
+  if (barber.photo_url && barber.photo_url !== photoUrl) {
     try {
-      const { del } = await import('@vercel/blob');
-      await del(barber.photo_url);
+      await deleteStoredPhoto(barber.photo_url);
     } catch (error) {
       console.warn('[BarberPhoto] Old Blob cleanup failed:', error.message);
     }
   }
 
   return database.one('SELECT id, name, photo_url AS photoUrl FROM barbers WHERE id = ?', [id]);
+}
+
+export async function removeBarberPhoto(barberId) {
+  const id = Number.parseInt(barberId, 10);
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Некорректный ID мастера');
+
+  const barber = await database.one('SELECT id, name, photo_url FROM barbers WHERE id = ? AND is_active = 1', [id]);
+  if (!barber) throw new HttpError(404, 'Мастер не найден');
+
+  if (barber.photo_url) {
+    try {
+      await deleteStoredPhoto(barber.photo_url);
+    } catch (error) {
+      console.warn('[BarberPhoto] Photo deletion failed:', error.message);
+      throw new HttpError(502, 'Не удалось удалить файл фотографии. Попробуйте ещё раз');
+    }
+  }
+  await database.run('UPDATE barbers SET photo_url = NULL WHERE id = ?', [id]);
+  return { id, name: barber.name, photoUrl: null };
 }

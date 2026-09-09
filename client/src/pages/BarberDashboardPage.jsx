@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Camera, CheckCircle2, ChevronDown, CircleAlert, Clock3, Coffee, Loader2, LogOut, MessageSquareText, NotebookPen, Phone, Plus, Save, Send, Star, Timer, Trash2, Users, X } from 'lucide-react';
-import { createMasterTimeBlock, deleteMasterTimeBlock, getBarberBookings, getBarberProfile, getMasterReviews, getMasterTimeBlocks, markBookingAttendance, saveMasterClientNote, uploadOwnMasterPhoto } from '../api/barberApi.js';
+import { createMasterTimeBlock, deleteMasterTimeBlock, deleteOwnMasterPhoto, getBarberBookings, getBarberProfile, getMasterReviews, getMasterTimeBlocks, markBookingAttendance, saveMasterClientNote, uploadOwnMasterPhoto } from '../api/barberApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import './BarberDashboardPage.css';
@@ -112,6 +112,20 @@ export default function BarberDashboardPage() {
       setPhotoSaving(false);
     }
   };
+  const removeProfilePhoto = async () => {
+    if (!profile?.photoUrl || photoSaving) return;
+    if (!window.confirm('Удалить фотографию профиля?')) return;
+    setPhotoSaving(true);
+    setError('');
+    try {
+      const updated = await deleteOwnMasterPhoto();
+      setProfile((current) => ({ ...current, ...updated }));
+    } catch (err) {
+      setError(err.message || 'Не удалось удалить фотографию');
+    } finally {
+      setPhotoSaving(false);
+    }
+  };
   const openBlockForm = () => {
     const start = new Date();
     start.setSeconds(0, 0);
@@ -184,7 +198,7 @@ export default function BarberDashboardPage() {
             <i>{photoSaving ? <Loader2 size={17} className="spin" /> : <Camera size={17} />}</i>
           </button>
           <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={changeProfilePhoto} hidden />
-          <div><p className="barber-dashboard-kicker">Рабочий кабинет</p><h1>{profile?.name || 'Мастер'}</h1><button type="button" className="barber-change-photo" onClick={() => photoInputRef.current?.click()} disabled={photoSaving}>{photoSaving ? 'Загружаем…' : 'Изменить фотографию'}</button></div>
+          <div><p className="barber-dashboard-kicker">Рабочий кабинет</p><h1>{profile?.name || 'Мастер'}</h1><div className="barber-photo-actions"><button type="button" className="barber-change-photo" onClick={() => photoInputRef.current?.click()} disabled={photoSaving}>{photoSaving ? 'Обновляем…' : 'Изменить фотографию'}</button>{profile?.photoUrl && <button type="button" className="barber-remove-photo" onClick={removeProfilePhoto} disabled={photoSaving}><Trash2 size={12} /> Удалить</button>}</div></div>
         </div>
         <button className="barber-logout" onClick={handleLogout}><LogOut size={16} /> Выйти</button>
       </header>

@@ -4,6 +4,7 @@ import {
   createBarber,
   updateBarber,
   deleteBarber,
+  deleteBarberPhoto,
   uploadBarberPhoto,
   createBarberAccount,
 } from '../../api/adminApi.js';
@@ -20,6 +21,7 @@ export default function AdminBarbersLight({ onAuthError }) {
   const [formSpecialty, setFormSpecialty] = useState('Мастер салона');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [photoDeleting, setPhotoDeleting] = useState(false);
   const [formAccountUsername, setFormAccountUsername] = useState('');
   const [formAccountPassword, setFormAccountPassword] = useState('');
   const fileInputRef = useRef(null);
@@ -79,6 +81,29 @@ export default function AdminBarbersLight({ onAuthError }) {
       const reader = new FileReader();
       reader.onload = (ev) => setPhotoPreview(ev.target.result);
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!photoPreview && !photoFile) return;
+    if (!editingBarber?.photoUrl) {
+      resetPhotoState();
+      return;
+    }
+    if (!window.confirm(`Удалить фотографию мастера «${editingBarber.name}»?`)) return;
+    setPhotoDeleting(true);
+    setError('');
+    try {
+      await deleteBarberPhoto(editingBarber.id);
+      setEditingBarber((current) => ({ ...current, photoUrl: null }));
+      setBarbers((current) => current.map((barber) => barber.id === editingBarber.id ? { ...barber, photoUrl: null } : barber));
+      resetPhotoState();
+      showToast('Фотография удалена');
+    } catch (err) {
+      if (err.status === 401) return onAuthError();
+      setError(err.message || 'Не удалось удалить фотографию');
+    } finally {
+      setPhotoDeleting(false);
     }
   };
 
@@ -280,6 +305,11 @@ export default function AdminBarbersLight({ onAuthError }) {
                   style={{ display: 'none' }}
                 />
                 <span className="photo-hint">Нажмите для загрузки фото</span>
+                {(photoPreview || photoFile) && (
+                  <button type="button" className="photo-remove-button" onClick={handleRemovePhoto} disabled={photoDeleting}>
+                    <Trash2 size={14} /> {photoDeleting ? 'Удаляем…' : 'Удалить фотографию'}
+                  </button>
+                )}
               </div>
               <div className="saas-form-field">
                 <label>Имя мастера</label>

@@ -50,6 +50,8 @@ try {
   const { cookie: client } = await request('/auth/login', { method: 'POST', data: { login: phone, password: 'RegressionPassword42' } });
   const { cookie: barber } = await request('/auth/login', { method: 'POST', data: { login: 'regression-master', password: 'RegressionPassword42' } });
   for (const route of ['/barber/me', '/barber/bookings', '/barber/reviews', '/barber/time-blocks']) await request(route, { cookie: barber });
+  await request(`/admin/barbers/${master.id}/photo`, { method: 'DELETE', cookie: admin });
+  await request('/barber/me/photo', { method: 'DELETE', cookie: barber });
   await request('/admin/services', { cookie: client, status: 401 });
   await request('/admin/services', { cookie: barber, status: 401 });
   await request('/client-auth/telegram/status', { cookie: client });
